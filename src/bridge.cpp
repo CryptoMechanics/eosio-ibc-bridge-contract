@@ -213,7 +213,7 @@ void check_signatures(name producer, std::vector<signature> producer_signatures,
     signing_keys.push_back(recover_key(digest_to_sign, sig));
   }
 
-  //check(auth_satisfied(auth, signing_keys), "invalid block signatures");
+  check(auth_satisfied(auth, signing_keys), "invalid block signatures");
 
 }
 
@@ -247,7 +247,7 @@ checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum2
     signing_keys.push_back(recover_key(digest_to_sign, sig));
   }
 
-  //check(auth_satisfied(auth, signing_keys), "invalid block signatures");
+  check(auth_satisfied(auth, signing_keys), "invalid block signatures");
 
   return previous_bmroot;
 
@@ -290,8 +290,8 @@ void bridge::add_proven_root(checksum256 chain_id, uint32_t block_num, checksum2
 
   time_point cts = current_time_point();
 
-  uint64_t expiry = cts.sec_since_epoch() + 60; //60 secs cache for testing
-  //uint64_t expiry = cts.sec_since_epoch() + (3600 * 24); //One day-minimum caching
+  //uint64_t expiry = cts.sec_since_epoch() + 60; //60 secs cache for testing
+  uint64_t expiry = cts.sec_since_epoch() + (3600 * 24); //One day-minimum caching
 
   auto merkle_index = _proofstable.get_index<"merkleroot"_n>();
 
@@ -420,7 +420,7 @@ bool bridge::checkblockproof(heavyproof blockproof){
   uint32_t range_span = proof_range_end-proof_range_start;
   uint32_t range_accounted = 0;
 
-  //check(range_span>=325 && range_span <=336, "invalid range proof");
+  check(range_span>=325 && range_span <=336, "invalid range proof");
 
   uint16_t numberOfBFTProofsRequiredPerRound = (uint16_t)fmin(ceil(2 * ((float)producer_schedule.producers.size() / 3)), producer_schedule.producers.size()) ;
 
@@ -436,7 +436,7 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
     range_accounted+=difference;
 
-    //check(difference>=1 && difference <=12, "invalid range proof");
+    check(difference>=1 && difference <=12, "invalid range proof");
 
     current_height = block_num;
 
