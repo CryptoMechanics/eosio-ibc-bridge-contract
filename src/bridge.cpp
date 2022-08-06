@@ -316,6 +316,41 @@ void bridge::gc_proofs(name chain, int count){
 
 }
 
+//garbage collection for schedules
+void bridge::gc_schedules(name chain, int count){
+  
+  time_point cts = current_time_point();
+
+  chainschedulestable _schedulestable(_self, chain.value);
+
+  int distance = std::distance(_schedulestable.begin(), _schedulestable.end());
+
+  //always keep at least the last 2 schedules
+  if (distance<=2) return;
+
+  auto expiry_index = _schedulestable.get_index<"expiry"_n>();
+
+  if (count == 0 ) count = distance;
+
+  int counter = 0;
+  int gc_counter = 0;
+
+  do {
+
+    auto e_itr = expiry_index.begin();
+
+   if (distance > 2 && cts > e_itr->expiry){
+      expiry_index.erase(e_itr);
+      gc_counter++;
+    } else break;
+ 
+    counter++;
+  } while (counter<count) ;
+
+  if (gc_counter>0) print("collected ", gc_counter," garbage items\n");
+
+}
+
 void bridge::add_proven_root(name chain, uint32_t block_num, checksum256 root){
 
   time_point cts = current_time_point();
@@ -351,6 +386,7 @@ void bridge::add_proven_root(name chain, uint32_t block_num, checksum256 root){
 
   //remove up to 2 proofs
   gc_proofs(chain, 2);
+
 
 
 }
@@ -392,6 +428,10 @@ ACTION bridge::init(name chain_name, checksum256 chain_id,  schedule initial_sch
     c.chain_id = chain_id;
   });
 
+  time_point cts = current_time_point();
+
+  uint64_t expiry = cts.sec_since_epoch() + (3600 * 24); //One day-minimum caching
+
   chainschedulestable _schedulestable(_self, chain_name.value);
   _schedulestable.emplace( get_self(), [&]( auto& c ) {
     c.version = initial_schedule.version;
@@ -399,6 +439,7 @@ ACTION bridge::init(name chain_name, checksum256 chain_id,  schedule initial_sch
     c.hash = sha256(serializedSchedule.data(), serializedSchedule.size());
     c.first_block = 0;
     c.last_block = ULONG_MAX;
+    c.expiry = time_point(seconds(expiry));
   });
 
 }
@@ -579,16 +620,24 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
         // add it to schedules table if not already present
         if (sched_itr == _schedulestable.end()) {
-          // chainschedulestable _schedulestable(_self, chain_itr->name.value);
+          
+          time_point cts = current_time_point();
+
+          uint64_t expiry = cts.sec_since_epoch() + (3600 * 24); //One day-minimum caching
+
           _schedulestable.emplace( get_self(), [&]( auto& c ) {
             c.version = new_producer_schedule.version;
             c.producer_schedule = new_producer_schedule;
             c.hash = schedule_hash;
             c.first_block = blockproof.blocktoprove.block.header.block_num();
             c.last_block = ULONG_MAX;
+            c.expiry = time_point(seconds(expiry)) ;
           });
 
           print("proved new schedule, hash: ", schedule_hash, "\n");
+
+          //remove up to 2 schedules
+          gc_schedules(chain_itr->name, 2);
 
         }
       }
