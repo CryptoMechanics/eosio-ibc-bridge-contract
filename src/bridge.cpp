@@ -32,7 +32,8 @@
 //
 // UX Testnet
 //
-//
+//  128575774 new_producer_schedule announced (v15 to v16)
+//  128576110 schedule_version incremented
 //
 //
 
@@ -648,26 +649,24 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
 }
 
-ACTION bridge::checkproofa(name prover, heavyproof blockproof){
-
-  require_auth(prover);
+ACTION bridge::checkproofa(heavyproof blockproof){
 
   checkblockproof(blockproof);
   
 }
 
-ACTION bridge::checkproofb(name prover, heavyproof blockproof, actionproof actionproof){
-
-  require_auth(prover);
+ACTION bridge::checkproofb(heavyproof blockproof, actionproof actionproof){
 
   checkblockproof(blockproof);
   checkactionproof(blockproof, actionproof);
 
 }
 
-ACTION bridge::checkproofc(name prover, lightproof blockproof, actionproof actionproof){
+ACTION bridge::test(int i){
 
-  require_auth(prover);
+}
+
+ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
 
   checksum256 lastProvenRoot = get_proven_root(get_chain_name(blockproof.chain_id));
 

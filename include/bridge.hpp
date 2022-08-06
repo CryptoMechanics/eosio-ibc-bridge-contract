@@ -203,20 +203,6 @@ CONTRACT bridge : public contract {
 
 		};
 
-/*		TABLE validproof {
-
-			uint64_t												id;
-			action 													action;
-			checksum256											chain_id;
-			checksum256 										receipt_digest;
-			name 											  		prover;
-
-     		uint64_t primary_key()const { return id; }
-     		checksum256 by_digest()const { return receipt_digest; }
-
-			EOSLIB_SERIALIZE( validproof, (id)(action)(chain_id)(receipt_digest)(prover))
-
-		};*/
 
 		// unscoped, stores readable name and chain id for supported chains
 		TABLE chain {
@@ -296,10 +282,12 @@ CONTRACT bridge : public contract {
 
       //Two different proving schemes are available.
 
-      ACTION checkproofa(name prover, heavyproof blockproof);
-      ACTION checkproofb(name prover, heavyproof blockproof, actionproof actionproof);
-      ACTION checkproofc(name prover, lightproof blockproof, actionproof actionproof); 
+      ACTION checkproofa(heavyproof blockproof);
+      ACTION checkproofb(heavyproof blockproof, actionproof actionproof);
+      ACTION checkproofc(lightproof blockproof, actionproof actionproof); 
       
+      ACTION test(int i);
+
       ACTION clear();
 
 		void gc_proofs(name chain, int count);
