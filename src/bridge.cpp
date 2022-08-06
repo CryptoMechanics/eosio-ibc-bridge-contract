@@ -1,14 +1,40 @@
 #include <bridge.hpp>
 
 
-//edge cases :
+//edge cases to test :
+//
 // EOS Mainnet -
+//
 //  739450 new_producers scheduled announced (v1 to v2)
 //  739450 schedule_version incremented
 //  793422 new_producers scheduled announced (v2 to v3)
 //  793758 schedule_version incremented
 //
-
+// Kylin -
+//
+//  197997700 new_producer_schedule announced
+//  197998035 schedule version incremented
+//
+// UX Network Mainnet -
+//
+//  5867172 new_producer_schedule announced (v1 to v2)
+//  5867174 schedule_version incremented
+//
+// EOS Testnet
+//
+//  41012565 two block producer signatures
+//  41012657 new_producer_schedule announced (v17 to v18)
+//  41012994 schedule_version incremented
+//  41018201 new_producer_schedule announced (v18 to v19)
+//  41018538 schedule_version incremented
+//  41195321 new_producer_schedule announced (v20 to v21)
+//  41195657 schedule_version incremented
+//
+// UX Testnet
+//
+//
+//
+//
 
 checksum256 make_canonical_left(const checksum256& val) {
    std::array<uint8_t, 32> arr = val.extract_as_byte_array();
@@ -193,12 +219,14 @@ bool contains(std::vector<T> vec, const T & elem)
 
 bool auth_satisfied(const block_signing_authority_v0 authority, std::vector<public_key> signing_keys) {
   uint32_t weight = 0;
-  for (const auto& kpw : authority.keys)
+  for (const auto& kpw : authority.keys){
      if (contains(signing_keys, kpw.key)) {
          weight += kpw.weight;
         if (weight >= authority.threshold)
            return true;
      }
+  }
+  print("insufficient wt_msig weight : ", weight, " (threshold : ", authority.threshold, ")\n");
   return false;
 }
 
@@ -213,14 +241,14 @@ void check_signatures(name producer, std::vector<signature> producer_signatures,
     signing_keys.push_back(recover_key(digest_to_sign, sig));
   }
 
-  check(auth_satisfied(auth, signing_keys), "invalid block signatures");
+  check(auth_satisfied(auth, signing_keys), "invalid BFT block signatures");
 
 }
 
 
 checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum256> &active_nodes, uint64_t node_count, bridge::schedule& producer_schedule, checksum256& producer_schedule_hash){
 
-  check(block.header.schedule_version == producer_schedule.version, "invalid schedule version");
+  check(block.header.schedule_version == producer_schedule.version || block.header.schedule_version == producer_schedule.version -1, "invalid schedule version");
 
   checksum256 header_digest = block.header.digest();
 
@@ -254,9 +282,11 @@ checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum2
 }
 
 //garbage collection for proofs
-void bridge::gc_proofs(int count){
+void bridge::gc_proofs(name chain, int count){
   
   time_point cts = current_time_point();
+
+  proofstable _proofstable(_self, chain.value);
 
   int distance = std::distance(_proofstable.begin(), _proofstable.end());
 
@@ -282,16 +312,18 @@ void bridge::gc_proofs(int count){
     counter++;
   } while (counter<count) ;
 
-  if (gc_counter>0) print("collected garbage : ", gc_counter,"\n");
+  if (gc_counter>0) print("collected ", gc_counter," garbage items\n");
 
 }
 
-void bridge::add_proven_root(checksum256 chain_id, uint32_t block_num, checksum256 root){
+void bridge::add_proven_root(name chain, uint32_t block_num, checksum256 root){
 
   time_point cts = current_time_point();
 
   //uint64_t expiry = cts.sec_since_epoch() + 60; //60 secs cache for testing
   uint64_t expiry = cts.sec_since_epoch() + (3600 * 24); //One day-minimum caching
+
+  proofstable _proofstable(_self, chain.value);
 
   auto merkle_index = _proofstable.get_index<"merkleroot"_n>();
 
@@ -301,7 +333,6 @@ void bridge::add_proven_root(checksum256 chain_id, uint32_t block_num, checksum2
 
     _proofstable.emplace( get_self(), [&]( auto& p ) {
       p.id = _proofstable.available_primary_key();
-      p.chain_id = chain_id;
       p.block_height = block_num;
       p.block_merkle_root = root; 
       p.expiry =  time_point(seconds(expiry)) ;
@@ -318,14 +349,16 @@ void bridge::add_proven_root(checksum256 chain_id, uint32_t block_num, checksum2
 
   print("Emplaced new proof-> height : ", block_num, ", root : ", root, "\n");
 
-  //remove 2
-  gc_proofs(2);
+  //remove up to 2 proofs
+  gc_proofs(chain, 2);
 
 
 }
 
 
-checksum256 bridge::get_proven_root(){
+checksum256 bridge::get_proven_root(name chain){
+
+  proofstable _proofstable(_self, chain.value);
 
   check(_proofstable.begin() != _proofstable.end(), "no root has been proved yet");
 
@@ -333,6 +366,16 @@ checksum256 bridge::get_proven_root(){
 
 }
 
+name bridge::get_chain_name(checksum256 chain_id){
+
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(chain_id);
+
+  check(chain_itr!=cid_index.end(), "Chain not found");
+
+  return chain_itr->name;
+
+}
 
 ACTION bridge::init(name chain_name, checksum256 chain_id,  schedule initial_schedule ) {
 
@@ -351,14 +394,14 @@ ACTION bridge::init(name chain_name, checksum256 chain_id,  schedule initial_sch
 
   chainschedulestable _schedulestable(_self, chain_name.value);
   _schedulestable.emplace( get_self(), [&]( auto& c ) {
-    c.id = initial_schedule.version;
+    c.version = initial_schedule.version;
     c.producer_schedule = initial_schedule;
     c.hash = sha256(serializedSchedule.data(), serializedSchedule.size());
+    c.first_block = 0;
     c.last_block = ULONG_MAX;
   });
 
 }
-
 
 bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
 
@@ -382,7 +425,6 @@ bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
   
 }
 
-
 bool bridge::checkblockproof(heavyproof blockproof){
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
@@ -396,6 +438,22 @@ bool bridge::checkblockproof(heavyproof blockproof){
   bridge::schedule producer_schedule = sched_itr->producer_schedule;
   checksum256 producer_schedule_hash = sched_itr->hash;
 
+  auto block_num = blockproof.blocktoprove.block.header.block_num();
+
+  //if current block_num is greater than the schedule's last block, change schedule
+  if (block_num>sched_itr->last_block){
+
+    sched_itr = _schedulestable.find(sched_itr->producer_schedule.version+1);
+
+    check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
+
+    print("Switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule.version, ").\n");
+
+    producer_schedule = sched_itr->producer_schedule;
+    producer_schedule_hash = sched_itr->hash;
+
+  }
+
   //Prove block authenticity
 
   //must be active nodes prior to appending previous block's id
@@ -408,13 +466,15 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
   print("bm_root ", bm_root, "\n");
 
-  add_proven_root(blockproof.chain_id, blockproof.blocktoprove.block.header.block_num(), bm_root);
+  add_proven_root(get_chain_name(blockproof.chain_id), block_num, bm_root);
 
   print("Block authenticity has been proved\n");
 
   //Prove Range & Finality
 
-  uint32_t proof_range_start = blockproof.blocktoprove.block.header.block_num();
+  uint32_t schedule_version = blockproof.blocktoprove.block.header.schedule_version;
+
+  uint32_t proof_range_start = block_num;
   uint32_t proof_range_end = blockproof.bftproof[blockproof.bftproof.size()-1].header.block_num();
 
   uint32_t range_span = proof_range_end-proof_range_start;
@@ -431,6 +491,10 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
   for (int i = 0 ; i < blockproof.bftproof.size(); i++){
 
+    uint32_t bft_schedule_version = blockproof.bftproof[i].header.schedule_version;
+
+    check(bft_schedule_version==schedule_version || bft_schedule_version==schedule_version+1, "invalid schedule version in BFT proof"); //can only have at most one schedule change over the time period required to prove an action
+
     uint32_t block_num = blockproof.bftproof[i].header.block_num();
     uint32_t difference = block_num - current_height;
 
@@ -440,7 +504,23 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
     current_height = block_num;
 
+    //if current block_num is greater than the schedule's last block, change schedule
+    if (block_num>sched_itr->last_block){
+
+      sched_itr = _schedulestable.find(sched_itr->producer_schedule.version+1);
+
+      check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
+
+      print("Switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule.version, ").\n");
+
+      producer_schedule = sched_itr->producer_schedule;
+      producer_schedule_hash = sched_itr->hash;
+
+    }
+
     check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, blockproof.bftproof[i].header.digest(), blockproof.bftproof[i].previous_bmroot,  producer_schedule, producer_schedule_hash );
+
+    //print("BFT proof ", i," (block ", block_num, ") successfully proven \n");
 
     if (round1_bft_producers.size() == numberOfBFTProofsRequiredPerRound){
       //accumulating for second round
@@ -470,6 +550,9 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
   }
 
+  check(round1_bft_producers.size() == numberOfBFTProofsRequiredPerRound, "not enough BFT proofs to prove finality");
+  check(round2_bft_producers.size() == numberOfBFTProofsRequiredPerRound, "not enough BFT proofs to prove finality");
+
   check(range_accounted<=range_span, "invalid range proof");
 
   //Unpack new schedule
@@ -498,9 +581,10 @@ bool bridge::checkblockproof(heavyproof blockproof){
         if (sched_itr == _schedulestable.end()) {
           // chainschedulestable _schedulestable(_self, chain_itr->name.value);
           _schedulestable.emplace( get_self(), [&]( auto& c ) {
-            c.id = new_producer_schedule.version;
+            c.version = new_producer_schedule.version;
             c.producer_schedule = new_producer_schedule;
             c.hash = schedule_hash;
+            c.first_block = blockproof.blocktoprove.block.header.block_num();
             c.last_block = ULONG_MAX;
           });
 
@@ -515,8 +599,6 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
 }
 
-
-
 ACTION bridge::checkproofa(name prover, heavyproof blockproof){
 
   require_auth(prover);
@@ -524,7 +606,6 @@ ACTION bridge::checkproofa(name prover, heavyproof blockproof){
   checkblockproof(blockproof);
   
 }
-
 
 ACTION bridge::checkproofb(name prover, heavyproof blockproof, actionproof actionproof){
 
@@ -539,7 +620,7 @@ ACTION bridge::checkproofc(name prover, lightproof blockproof, actionproof actio
 
   require_auth(prover);
 
-  checksum256 lastProvenRoot = get_proven_root();
+  checksum256 lastProvenRoot = get_proven_root(get_chain_name(blockproof.chain_id));
 
   print("last proven root : ", lastProvenRoot, "\n");
 
@@ -581,13 +662,16 @@ ACTION bridge::clear( ) {
       _schedulestable.erase(itr);
     }
 
+    proofstable _proofstable(_self, chain_itr->name.value);
+    while (_proofstable.begin() != _proofstable.end()) {
+      auto itr = _proofstable.end();
+      itr--;
+      _proofstable.erase(itr);
+    }
+
     _chainstable.erase(chain_itr);
+    
   }
 
-  while (_proofstable.begin() != _proofstable.end()) {
-    auto itr = _proofstable.end();
-    itr--;
-    _proofstable.erase(itr);
-  }
 
 }
