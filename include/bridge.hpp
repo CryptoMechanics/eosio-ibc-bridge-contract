@@ -1,6 +1,3 @@
-
-
-
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
 #include <eosio/producer_schedule.hpp>
@@ -105,9 +102,7 @@ CONTRACT bridge : public contract {
 			std::vector<signature> 	producer_signatures;
       	checksum256 				header_digest;
       	checksum256  				previous_bmroot;
-
 			EOSLIB_SERIALIZE( hblockheader, (block_num)(producer)(producer_signatures)(header_digest)(previous_bmroot))
-
       };
 */
       //signed block header
@@ -162,12 +157,10 @@ CONTRACT bridge : public contract {
 			std::vector<checksum256_list> 	proofs;
 			std::vector<checksum256> 			leaves;
 			checksum256 							root;
-
 			EOSLIB_SERIALIZE( bmproof, (proofs)(leaves)(root))
-
 		};*/
 
-		//heavy proof
+		//heavy block proof
 		TABLE heavyproof {
 
 			checksum256												chain_id;
@@ -180,18 +173,22 @@ CONTRACT bridge : public contract {
 
 		};
 
+		//light block proof
 		TABLE lightproof {
 
 			checksum256												chain_id;
 
 			blockheader    										header;
 
+			checksum256												root;
+
 			std::vector<checksum256>  							bmproofpath;
 
-			EOSLIB_SERIALIZE( lightproof, (chain_id)(header)(bmproofpath))
+			EOSLIB_SERIALIZE( lightproof, (chain_id)(header)(root)(bmproofpath))
 
 		};
 
+		//action proof
 		TABLE actionproof {
 
 			action 													action;
@@ -204,7 +201,8 @@ CONTRACT bridge : public contract {
 		};
 
 
-		// unscoped, stores readable name and chain id for supported chains
+		//holds basic chain meta data
+		//  global scope
 		TABLE chain {
 
 			name name;
@@ -217,7 +215,9 @@ CONTRACT bridge : public contract {
 
 		};
 
-		// scoped by readable chain name
+
+		//schedule object
+		//  scoped by readable chain name
 		TABLE chainschedule {
 
 			uint64_t			version;
@@ -234,7 +234,8 @@ CONTRACT bridge : public contract {
 
 		};
 
-		//scoped by readable chain name
+		//saved heavy proof, to be used for light proofs moving forward
+		//  scoped by readable chain name
 		TABLE lastproof {
 
 			uint64_t 		id;
@@ -261,9 +262,6 @@ CONTRACT bridge : public contract {
 	    typedef eosio::multi_index< "schedules"_n, chainschedule,
             indexed_by<"expiry"_n, const_mem_fun<chainschedule, uint64_t, &chainschedule::by_expiry>>> chainschedulestable;
 
-/*	    typedef eosio::multi_index< "proofs"_n, validproof,
-            indexed_by<"digest"_n, const_mem_fun<validproof, checksum256, &validproof::by_digest>>> proofstable;*/
-
 	    typedef eosio::multi_index< "lastproofs"_n, lastproof,
             indexed_by<"height"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_block_height>>,
             indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
@@ -280,16 +278,21 @@ CONTRACT bridge : public contract {
 
       ACTION init(name chain_name, checksum256 chain_id, schedule initial_schedule );
 
-      //Two different proving schemes are available.
+      //Two different proving schemes are available (heavy / light).
 
+      //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block
       ACTION checkproofa(heavyproof blockproof);
       ACTION checkproofb(heavyproof blockproof, actionproof actionproof);
+
+      //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
       ACTION checkproofc(lightproof blockproof, actionproof actionproof); 
       
       ACTION test(int i);
+      ACTION test2(blockheader h);
 
       ACTION clear();
 
+      //garbage collection functions
 		void gc_proofs(name chain, int count);
 		void gc_schedules(name chain, int count);
 
@@ -297,7 +300,7 @@ CONTRACT bridge : public contract {
 		bool checkactionproof(heavyproof blockproof, actionproof actionproof);
 
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
-		checksum256 get_proven_root(name chain);
+		void check_proven_root(name chain, checksum256 root);
 
 		name get_chain_name(checksum256 chain_id);
 
