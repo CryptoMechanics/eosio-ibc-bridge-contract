@@ -287,7 +287,7 @@ CONTRACT bridge : public contract {
       //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
       ACTION checkproofc(lightproof blockproof, actionproof actionproof); 
       
-      ACTION test(int i);
+      ACTION test();
       ACTION test2(blockheader h);
 
       ACTION clear();

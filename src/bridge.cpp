@@ -112,7 +112,7 @@ inline void move_nodes(Container& to, Container&& from) {
 }
 
 //Concatenate and hash a pair of values and return the resulting digest
-checksum256 hashPair( std::pair<checksum256, checksum256> p){
+checksum256 hash_pair( std::pair<checksum256, checksum256> p){
 
   std::array<uint8_t, 32> arr1 = p.first.extract_as_byte_array();
   std::array<uint8_t, 32> arr2 = p.second.extract_as_byte_array();
@@ -148,7 +148,7 @@ const checksum256& append(const checksum256& digest, std::vector<checksum256> &_
            updated_active_nodes.emplace_back(top);
         }
 
-        top = hashPair(make_canonical_pair(top, top));
+        top = hash_pair(make_canonical_pair(top, top));
 
         partial = true;
      } else {
@@ -160,7 +160,7 @@ const checksum256& append(const checksum256& digest, std::vector<checksum256> &_
            updated_active_nodes.emplace_back(left_value);
         }
 
-        top = hashPair(make_canonical_pair(left_value, top));
+        top = hash_pair(make_canonical_pair(left_value, top));
 
      }
 
@@ -181,10 +181,6 @@ const checksum256& append(const checksum256& digest, std::vector<checksum256> &_
 //Given a proof and a specific leaf, verify its inclusion in a merkle tree with the given root
 bool proof_of_inclusion(std::vector<checksum256> proof_nodes, checksum256 target, checksum256 root ) {
 
-  //print("proof_nodes[0] : ", proof_nodes[0], "\n");
-  //print("target : ", target, "\n");
-  //print("root : ", root, "\n");
-
    checksum256 hash = target;
 
    auto p_itr = proof_nodes.begin();
@@ -201,21 +197,15 @@ bool proof_of_inclusion(std::vector<checksum256> proof_nodes, checksum256 target
          node = make_canonical_right(node);
          hash = make_canonical_left(hash);
 
-  //print("can r node : ", node, "\n");
-  //print("can l hash : ", hash, "\n");
+         hash = hash_pair(std::make_pair(hash, node));
 
-         hash = hashPair(std::make_pair(hash, node));
-  //print("res hash : ", hash, "\n");
       }
       else {
          hash = make_canonical_right(hash);
          node = make_canonical_left(node);
 
-  //print("can l node : ", node, "\n");
-  //print("can r hash : ", hash, "\n");
+         hash = hash_pair(std::make_pair(node, hash));
 
-         hash = hashPair(std::make_pair(node, hash));
-  //print("res hash : ", hash, "\n");
       }
 
       p_itr++;
@@ -262,8 +252,8 @@ bool auth_satisfied(const block_signing_authority_v0 authority, std::vector<publ
 //prepare the digest to sign from its base components, recover the key(s) from the signature(s) and verify if we enough signatures matching keys to satisfy authorization requirements
  void check_signatures(name producer, std::vector<signature> producer_signatures, checksum256 header_digest, checksum256 previous_bmroot, bridge::schedule producer_schedule, checksum256 producer_schedule_hash ){
 
-  checksum256 header_bmroot = hashPair( std::make_pair( header_digest, previous_bmroot) );
-  checksum256 digest_to_sign = hashPair( std::make_pair( header_bmroot, producer_schedule_hash) );
+  checksum256 header_bmroot = hash_pair( std::make_pair( header_digest, previous_bmroot) );
+  checksum256 digest_to_sign = hash_pair( std::make_pair( header_bmroot, producer_schedule_hash) );
 
   block_signing_authority_v0 auth = get_producer_authority(producer_schedule, producer);
   std::vector<public_key> signing_keys;
@@ -304,28 +294,28 @@ checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum2
 
 }
 
-//attempt to perform garbage collection for <count> proofs. If <count> is 0, attempt to perform garbage collection for all
+//attempt to perform garbage collection for <count> proofs
 void bridge::gc_proofs(name chain, int count){
   
   time_point cts = current_time_point();
 
   proofstable _proofstable(_self, chain.value);
 
-  int distance = std::distance(_proofstable.begin(), _proofstable.end());
+  //int distance = std::distance(_proofstable.begin(), _proofstable.end()); //todo : optimize
 
   auto block_height_index = _proofstable.get_index<"height"_n>();
   auto expiry_index = _proofstable.get_index<"expiry"_n>();
 
-  auto h_itr = block_height_index.rbegin();
+  auto h_itr = block_height_index.rbegin(); //highest block height
 
-  if (count == 0 ) count = distance;
+  //if (count == 0 ) count = distance;
 
   int counter = 0;
   int gc_counter = 0;
 
   do {
 
-    auto e_itr = expiry_index.begin();
+    auto e_itr = expiry_index.begin(); //oldest cache expiry
 
     //We always keep the successful proof of the highest blockchain height
     if (e_itr->block_height < h_itr->block_height && cts > e_itr->expiry){ 
@@ -340,14 +330,14 @@ void bridge::gc_proofs(name chain, int count){
 
 }
 
-//attempt to perform garbage collection for <count> schedules. If <count> is 0, attempt to perform garbage collection for all
+//attempt to perform garbage collection for <count> schedules
 void bridge::gc_schedules(name chain, int count){
   
   time_point cts = current_time_point();
 
   chainschedulestable _schedulestable(_self, chain.value);
 
-  int distance = std::distance(_schedulestable.begin(), _schedulestable.end());
+  int distance = std::distance(_schedulestable.begin(), _schedulestable.end()); //todo : optimize
 
   //we always keep at least the last 2 schedules
   if (distance<=2) return;
@@ -676,29 +666,42 @@ bool bridge::checkblockproof(heavyproof blockproof){
     }
   }
 
-  //remove up to 2 proofs
-  gc_proofs(chain_itr->name, 2);
-  //remove up to 2 schedules
-  gc_schedules(chain_itr->name, 2);
-
   return true;
 
 }
 
+//Verify a block without verifying an action using the heavy proof scheme
 ACTION bridge::checkproofa(heavyproof blockproof){
 
   checkblockproof(blockproof);
   
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
 }
 
+//Verify a block and an action using the heavy proof scheme
 ACTION bridge::checkproofb(heavyproof blockproof, actionproof actionproof){
 
   checkblockproof(blockproof);
   checkactionproof(blockproof, actionproof);
 
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
 }
 
-
+//Verify an action using the light proof scheme
 ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
 
   check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
@@ -728,9 +731,19 @@ ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
 
   //success
   
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
 }
 
-ACTION bridge::test(int i){
+//Testing / clear functions. To be removed
+
+ACTION bridge::test(){
 
 }
 
