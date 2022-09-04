@@ -1,5 +1,7 @@
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
+#include <eosio/crypto.hpp>
+
 #include <eosio/producer_schedule.hpp>
 #include <math.h>
 
@@ -10,6 +12,29 @@ using namespace eosio;
 CONTRACT bridge : public contract {
    public:
       using contract::contract;
+
+      //const int SCHEDULE_CACHING_DURATION = 60;
+      //const int PROOF_CACHING_DURATION = 60;
+
+      const name SYSTEM_CONTRACT = "eosio"_n;
+		const name ACTIVATE_ACTION = "activate"_n;
+
+		//ACTION_RETURN_VALUE DIGEST : "c3a6138c5061cf291310887c0b5c71fcaffeab90d5deb50d3b9e687cead45071"
+		const uint8_t ACTION_RETURN_VALUE_ARRAY[32] = {	195,	166,	19,	140,	80,	97,	207,	41,	
+																		19,	16,	136,	124,	11,	92,	113,	252,	
+																		175,	254,	171,	144,	213,	222,	181,	13,	
+																		59,	158,	104,	124,	234,	212,	80,	113	};
+
+		const checksum256 ACTION_RETURN_VALUE_DIGEST = checksum256(ACTION_RETURN_VALUE_ARRAY);
+
+      const int SCHEDULE_CACHING_DURATION = (3600 * 24);
+      const int PROOF_CACHING_DURATION = (3600 * 24);
+
+      const int BLOCKS_PER_PRODUCER_ROUND = 12; //number of blocks for one block production round
+      const int THRESHOLD_FOR_FINALITY = 14; //threshold of unique verifier signatures required to mark a block for finality candidate
+
+      const int MIN_PROOF_RANGE = 2 * THRESHOLD_FOR_FINALITY * 1; //minimum valid range for a proof
+      const int MAX_PROOF_RANGE = 2 * THRESHOLD_FOR_FINALITY * BLOCKS_PER_PRODUCER_ROUND; //maximum valid range for a proof
 
 		static uint32_t reverse_bytes(uint32_t input){
 
@@ -48,6 +73,20 @@ CONTRACT bridge : public contract {
 
 		}
 
+
+		struct r_action_base {
+		   name             account;
+			name             name;
+		   std::vector<permission_level> authorization;
+
+		};
+
+		struct r_action :  r_action_base {
+		   std::vector<char> 	data;
+
+			EOSLIB_SERIALIZE( r_action, (account)(name)(authorization)(data))
+
+		};
 
 		//Adding definition to ABI file to make it easier to interface with the contract
 		TABLE schedule {
@@ -94,27 +133,19 @@ CONTRACT bridge : public contract {
 
       };
 
-/*      //hashed block header
-      TABLE hblockheader {
-      	
-      	uint32_t 					block_num;
-      	name 							producer;
-			std::vector<signature> 	producer_signatures;
-      	checksum256 				header_digest;
-      	checksum256  				previous_bmroot;
-			EOSLIB_SERIALIZE( hblockheader, (block_num)(producer)(producer_signatures)(header_digest)(previous_bmroot))
-      };
-*/
       //signed block header
       TABLE sblockheader {
       	
-      	blockheader 				header;
+      	blockheader 					header;
 
-			std::vector<signature> 	producer_signatures;
+			std::vector<signature> 		producer_signatures;
 
-      	checksum256  				previous_bmroot;
+      	checksum256  					previous_bmroot;
+      	//checksum256  					id;
+      	std::vector<checksum256>  	bmproofpath;
+ 
 
-			EOSLIB_SERIALIZE( sblockheader, (header)(producer_signatures)(previous_bmroot))
+			EOSLIB_SERIALIZE( sblockheader, (header)(producer_signatures)(previous_bmroot)(bmproofpath))
 
       };
 
@@ -153,13 +184,6 @@ CONTRACT bridge : public contract {
 
 		typedef std::vector<checksum256> checksum256_list; // required because nested vectors not support in legacy CDTs
 
-/*		TABLE bmproof {
-			std::vector<checksum256_list> 	proofs;
-			std::vector<checksum256> 			leaves;
-			checksum256 							root;
-			EOSLIB_SERIALIZE( bmproof, (proofs)(leaves)(root))
-		};*/
-
 		//heavy block proof
 		TABLE heavyproof {
 
@@ -194,9 +218,11 @@ CONTRACT bridge : public contract {
 			action 													action;
 			actreceipt 												receipt;
 
+			std::vector<char>										returnvalue;
+
 			std::vector<checksum256>							amproofpath;
 
-			EOSLIB_SERIALIZE( actionproof, (action)(receipt)(amproofpath))
+			EOSLIB_SERIALIZE( actionproof, (action)(receipt)(returnvalue)(amproofpath))
 
 		};
 
@@ -208,10 +234,12 @@ CONTRACT bridge : public contract {
 			name name;
 			checksum256 chain_id;
 
+			uint32_t return_value_activated;
+
 			uint64_t primary_key()const { return name.value; }
 			checksum256 by_chain_id()const { return chain_id; }
 
-			EOSLIB_SERIALIZE( chain, (name)(chain_id) )
+			EOSLIB_SERIALIZE( chain, (name)(chain_id)(return_value_activated) )
 
 		};
 
@@ -256,27 +284,28 @@ CONTRACT bridge : public contract {
 		};
 		
 		
-	    typedef eosio::multi_index< "chains"_n, chain,
-	    		indexed_by<"chainid"_n, const_mem_fun<chain, checksum256, &chain::by_chain_id>>> chainstable;
+	   typedef eosio::multi_index< "chains"_n, chain,
+	   	  indexed_by<"chainid"_n, const_mem_fun<chain, checksum256, &chain::by_chain_id>>> chainstable;
 
-	    typedef eosio::multi_index< "schedules"_n, chainschedule,
-            indexed_by<"expiry"_n, const_mem_fun<chainschedule, uint64_t, &chainschedule::by_expiry>>> chainschedulestable;
+	   typedef eosio::multi_index< "schedules"_n, chainschedule,
+           indexed_by<"expiry"_n, const_mem_fun<chainschedule, uint64_t, &chainschedule::by_expiry>>> chainschedulestable;
 
-	    typedef eosio::multi_index< "lastproofs"_n, lastproof,
-            indexed_by<"height"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_block_height>>,
-            indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
-            indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_expiry>>> proofstable;
+	   typedef eosio::multi_index< "lastproofs"_n, lastproof,
+           indexed_by<"height"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_block_height>>,
+           indexed_by<"merkleroot"_n, const_mem_fun<lastproof, checksum256, &lastproof::by_merkle_root>>,
+           indexed_by<"expiry"_n, const_mem_fun<lastproof, uint64_t, &lastproof::by_expiry>>> proofstable;
 
       chainstable _chainstable;
 
-	    bridge( name receiver, name code, datastream<const char*> ds ) :
-	    contract(receiver, code, ds),
-	    _chainstable(receiver, receiver.value)
-	    {
+	   bridge( name receiver, name code, datastream<const char*> ds ) :
+	   contract(receiver, code, ds),
+	   _chainstable(receiver, receiver.value)
+	   {
 	 
-	    }
+	   }
 
-      ACTION init(name chain_name, checksum256 chain_id, schedule initial_schedule );
+	   //one time initialization per chain
+      ACTION init(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedule initial_schedule );
 
       //Two different proving schemes are available (heavy / light).
 
@@ -287,10 +316,19 @@ CONTRACT bridge : public contract {
       //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
       ACTION checkproofc(lightproof blockproof, actionproof actionproof); 
       
-      ACTION test();
+
+
+      //to be removed
+
+      ACTION test(action a, std::vector<char> returnvalue);
       ACTION test2(blockheader h);
 
       ACTION clear();
+
+
+
+
+
 
       //garbage collection functions
 		void gc_proofs(name chain, int count);
