@@ -790,13 +790,13 @@ ACTION bridge::checkproofa(heavyproof blockproof){
 
   checkblockproof(blockproof);
   
-/*  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
   auto chain_itr = cid_index.find(blockproof.chain_id);
 
   //attempt to remove up to 2 proofs
   gc_proofs(chain_itr->name, 2);
   //attempt to remove up to 2 schedules
-  gc_schedules(chain_itr->name, 2);*/
+  gc_schedules(chain_itr->name, 2);
 
 }
 
