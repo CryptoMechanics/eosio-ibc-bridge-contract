@@ -30,12 +30,6 @@ CONTRACT bridge : public contract {
       const int SCHEDULE_CACHING_DURATION = (3600 * 24);
       const int PROOF_CACHING_DURATION = (3600 * 24);
 
-      const int BLOCKS_PER_PRODUCER_ROUND = 12; //number of blocks for one block production round
-      const int THRESHOLD_FOR_FINALITY = 14; //threshold of unique verifier signatures required to mark a block for finality candidate
-
-      const int MIN_PROOF_RANGE = 2 * THRESHOLD_FOR_FINALITY * 1; //minimum valid range for a proof
-      const int MAX_PROOF_RANGE = 2 * THRESHOLD_FOR_FINALITY * BLOCKS_PER_PRODUCER_ROUND; //maximum valid range for a proof
-
 		static uint32_t reverse_bytes(uint32_t input){
 
 		  int32_t output = (input>>24 & 0xff)|(input>>8 & 0xff00)|(input<<8 & 0xff0000)|(input<<24 & 0xff000000);
@@ -141,8 +135,7 @@ CONTRACT bridge : public contract {
 			std::vector<signature> 		producer_signatures;
 
       	checksum256  					previous_bmroot;
-      	//checksum256  					id;
-      	std::vector<checksum256>  	bmproofpath;
+      	std::vector<uint16_t>  	bmproofpath;
  
 
 			EOSLIB_SERIALIZE( sblockheader, (header)(producer_signatures)(previous_bmroot)(bmproofpath))
@@ -153,7 +146,7 @@ CONTRACT bridge : public contract {
 		TABLE anchorblock {
 				 
 			sblockheader block;
-			std::vector<checksum256> active_nodes;
+			std::vector<uint16_t> active_nodes;
 			uint64_t node_count;
 
 			EOSLIB_SERIALIZE( anchorblock, (block)(active_nodes)(node_count))
@@ -189,11 +182,13 @@ CONTRACT bridge : public contract {
 
 			checksum256												chain_id;
 
+			std::vector<checksum256>							hashes;
+
 			anchorblock 											blocktoprove;
 
 			std::vector<sblockheader>							bftproof;
 
-			EOSLIB_SERIALIZE( heavyproof, (chain_id)(blocktoprove)(bftproof))
+			EOSLIB_SERIALIZE( heavyproof, (chain_id)(hashes)(blocktoprove)(bftproof))
 
 		};
 
@@ -334,8 +329,8 @@ CONTRACT bridge : public contract {
 		void gc_proofs(name chain, int count);
 		void gc_schedules(name chain, int count);
 
-		bool checkblockproof(heavyproof blockproof);
-		bool checkactionproof(heavyproof blockproof, actionproof actionproof);
+		void checkblockproof(heavyproof blockproof);
+		void checkactionproof(heavyproof blockproof, actionproof actionproof);
 
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);

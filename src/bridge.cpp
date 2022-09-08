@@ -473,6 +473,8 @@ void bridge::check_proven_root(name chain, checksum256 root){
 
   check(itr!=merkle_index.end(), "unknown merkle root. must prove root first");
 
+  print("found root ", root, "\n");
+
 }
 
 name bridge::get_chain_name(checksum256 chain_id){
@@ -486,12 +488,31 @@ name bridge::get_chain_name(checksum256 chain_id){
 
 }
 
-ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedule initial_schedule ) {
+std::vector<checksum256> map_hashes(std::vector<checksum256> dictionary, std::vector<uint16_t> index)
+{
+    std::vector<checksum256> result;
 
-  print("BLOCKS_PER_PRODUCER_ROUND ", BLOCKS_PER_PRODUCER_ROUND, "\n");
-  print("THRESHOLD_FOR_FINALITY ", THRESHOLD_FOR_FINALITY, "\n");
-  print("MIN_PROOF_RANGE ", MIN_PROOF_RANGE, "\n");
-  print("MAX_PROOF_RANGE ", MAX_PROOF_RANGE, "\n");
+    auto itr = index.begin();
+
+    while (itr!= index.end()){
+
+      uint16_t i = *itr;
+      checksum256 h = dictionary.at(i);
+
+      //print("i ", i, "\n");
+      //print("h ", h, "\n");
+
+      result.push_back(h);
+
+      itr++;
+
+    }
+
+
+    return result;
+}
+
+ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedule initial_schedule ) {
 
   require_auth(_self);
 
@@ -528,7 +549,7 @@ ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value
 
 }
 
-bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
+void bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
 
   //Prove action
 
@@ -541,10 +562,7 @@ bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
 
   uint32_t block_num = blockproof.blocktoprove.block.header.block_num();
 
-  print("actionproof.action.account ", actionproof.action.account, "\n");
-  print("actionproof.action.name ", actionproof.action.name, "\n");
-
-  bool action_return_value_enabled = false;
+  print("Proving action : ", actionproof.action.account, "::", actionproof.action.name, "\n");
 
   if (actionproof.action.account==SYSTEM_CONTRACT && actionproof.action.name==ACTIVATE_ACTION){
     
@@ -553,25 +571,23 @@ bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
 
     checksum256 feature = checksum256(arr);
 
-    print("ACTION_RETURN_VALUE_DIGEST ", ACTION_RETURN_VALUE_DIGEST, "\n");
-    print("action contains activation for protocol feature ACTION_RETURN_VALUE (block ", block_num ,"). Updating chain data\n");
+    //print("ACTION_RETURN_VALUE_DIGEST ", ACTION_RETURN_VALUE_DIGEST, "\n");
+    print("action contains activation for protocol feature ACTION_RETURN_VALUE (block ", block_num ,")\n");
 
     cid_index.modify(chain_itr, get_self(), [&]( auto& c ) {
       c.return_value_activated = block_num;
     });
 
-    action_return_value_enabled = true;
-
   }
 
   if ( chain_itr->return_value_activated > 0 && block_num > chain_itr->return_value_activated ){
-    print("using POST-ACTION_RETURN_VALUE activation hashing function\n");
+    //print("using POST-ACTION_RETURN_VALUE activation hashing function\n");
     r_action ra =  {actionproof.action.account, actionproof.action.name, actionproof.action.authorization, actionproof.action.data};
 
     actionDigest = generate_action_digest(ra, actionproof.returnvalue);
   }
   else {
-    print("using PRE-ACTION_RETURN_VALUE activation hashing function\n");
+    //print("using PRE-ACTION_RETURN_VALUE activation hashing function\n");
     std::vector<char> serializedAction = pack(actionproof.action);
     actionDigest = sha256(serializedAction.data(), serializedAction.size());
   }
@@ -592,12 +608,9 @@ bool bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
   
   print("action inclusion ", actionDigest, " successfully proved", "\n");
 
-
-  return true;
-  
 }
 
-bool bridge::checkblockproof(heavyproof blockproof){
+void bridge::checkblockproof(heavyproof blockproof){
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
   auto chain_itr = cid_index.find(blockproof.chain_id);
@@ -612,7 +625,8 @@ bool bridge::checkblockproof(heavyproof blockproof){
   bridge::schedule producer_schedule = sched_itr->producer_schedule;
   checksum256 producer_schedule_hash = sched_itr->hash;
 
-  auto block_num = blockproof.blocktoprove.block.header.block_num();
+  uint32_t block_num = blockproof.blocktoprove.block.header.block_num();
+  uint32_t previous_block_num = block_num;
 
   //if current block_num is greater than the schedule's last block, change schedule
   if (block_num>sched_itr->last_block){
@@ -635,55 +649,46 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
   //must be active nodes prior to appending previous block's id
   uint64_t node_count = blockproof.blocktoprove.node_count;
-  std::vector<checksum256> active_nodes = blockproof.blocktoprove.active_nodes; 
-  
-  print("active_nodes[active_nodes.size()-1] ", active_nodes[active_nodes.size()-1], "\n");
 
-  checksum256 bm_root = check_block_header(blockproof.blocktoprove.block, active_nodes, node_count, producer_schedule, producer_schedule_hash);
+  std::vector<checksum256> hashes = blockproof.hashes;
+  std::vector<uint16_t> an = blockproof.blocktoprove.active_nodes;
+    
+  std::vector<checksum256> active = map_hashes(hashes, an);
 
-  print("bm_root ", bm_root, "\n");
+  checksum256 bm_root = check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule, producer_schedule_hash);
 
   add_proven_root(get_chain_name(blockproof.chain_id), block_num, bm_root);
 
   print("block authenticity has been proved\n");
 
-  //Prove Range & Finality
+  //Prove Finality
 
   uint32_t schedule_version = blockproof.blocktoprove.block.header.schedule_version;
 
-  //uint32_t proof_range_start = block_num;
-  //uint32_t proof_range_end = blockproof.bftproof[blockproof.bftproof.size()-1].header.block_num();
+  //under current consensus model, threshold for finality is set at 2/3+1. Since blocktoprove counts for 1, and last block of a round counts as the first block for next round, we can use 2/3 here instead.
+  uint32_t threshold_for_finality = producer_schedule.producers.size() * 2 / 3;
 
-  //uint32_t range_span = proof_range_end-proof_range_start;
-  //uint32_t range_accounted = 0;
-
-  //print("range_span ", range_span, "\n");
-
-  //check(range_span >= MIN_PROOF_RANGE && range_span <=MAX_PROOF_RANGE, "invalid range proof span");
-
-  check(blockproof.bftproof.size()==THRESHOLD_FOR_FINALITY*2, "invalid number of bft proofs");
+  check(blockproof.bftproof.size()==threshold_for_finality*2, "invalid number of bft proofs");
 
   std::set<name> round1_bft_producers;
   std::set<name> round2_bft_producers;
 
-  //uint32_t current_height = proof_range_start;
-
   for (int i = 0 ; i < blockproof.bftproof.size(); i++){
 
-    check(proof_of_inclusion(blockproof.bftproof[i].bmproofpath, id, blockproof.bftproof[i].previous_bmroot), "invalid block merkle proof path");
+    std::vector<checksum256> bmproofpath = map_hashes(blockproof.hashes, blockproof.bftproof[i].bmproofpath);
+
+    //bmproofpath is supplied by the user, id is computed from the (signed and verified) blocktoprove header and merkle root is verified by being part of the signed digest 
+    check(proof_of_inclusion(bmproofpath, id, blockproof.bftproof[i].previous_bmroot), "invalid block merkle proof path");
 
     uint32_t bft_schedule_version = blockproof.bftproof[i].header.schedule_version;
 
     check(bft_schedule_version==schedule_version || bft_schedule_version==schedule_version+1, "invalid schedule version in BFT proof"); //can only have at most one schedule change over the time period required to prove an action
 
-    uint32_t block_num = blockproof.bftproof[i].header.block_num();
-    //uint32_t difference = block_num - current_height;
+    block_num = blockproof.bftproof[i].header.block_num();
+      
+    check(block_num>previous_block_num, "BFT proofs must be sequential");
 
-    //range_accounted+=difference;
-  
-    //check(difference>=1 && difference <=BLOCKS_PER_PRODUCER_ROUND, "invalid range proof difference between BFT proofs");
-
-    //current_height = block_num;
+    previous_block_num = block_num;
 
     //if current block_num is greater than the schedule's last block, change schedule
     if (block_num>sched_itr->last_block){
@@ -703,7 +708,7 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
     //print("BFT proof ", i," (block ", block_num, ") successfully proven \n");
 
-    if (round1_bft_producers.size() == THRESHOLD_FOR_FINALITY){
+    if (round1_bft_producers.size() == threshold_for_finality){
       //accumulating for second round
 
       if (round2_bft_producers.size() == 0) check( *round1_bft_producers.rbegin() != blockproof.bftproof[i].header.producer , "producer duplicated in bft proofs: " + blockproof.bftproof[i].header.producer.to_string());
@@ -711,7 +716,7 @@ bool bridge::checkblockproof(heavyproof blockproof){
       
       round2_bft_producers.emplace(blockproof.bftproof[i].header.producer);
 
-      if (round2_bft_producers.size() == THRESHOLD_FOR_FINALITY){
+      if (round2_bft_producers.size() == threshold_for_finality){
         
         //success, enough proofs for 2 rounds
         print("BFT finality successfully evaluated\n");
@@ -731,12 +736,8 @@ bool bridge::checkblockproof(heavyproof blockproof){
 
   }
 
-  check(round1_bft_producers.size() == THRESHOLD_FOR_FINALITY, "not enough BFT proofs to prove finality");
-  check(round2_bft_producers.size() == THRESHOLD_FOR_FINALITY, "not enough BFT proofs to prove finality");
-
-  //check(range_accounted<=range_span, "invalid range proof. Mismatch between block distance accounted for and expected span");
-
-  //Unpack new schedule
+  check(round1_bft_producers.size() == threshold_for_finality, "not enough BFT proofs to prove finality");
+  check(round2_bft_producers.size() == threshold_for_finality, "not enough BFT proofs to prove finality");
 
   // if block header contains a new schedule, unpack and add it to schedules for chain
   if (blockproof.blocktoprove.block.header.header_extensions.size() > 0) {
@@ -782,8 +783,6 @@ bool bridge::checkblockproof(heavyproof blockproof){
     }
   }
 
-  return true;
-
 }
 
 //Verify a block without verifying an action using the heavy proof scheme
@@ -791,13 +790,13 @@ ACTION bridge::checkproofa(heavyproof blockproof){
 
   checkblockproof(blockproof);
   
-  auto cid_index = _chainstable.get_index<"chainid"_n>();
+/*  auto cid_index = _chainstable.get_index<"chainid"_n>();
   auto chain_itr = cid_index.find(blockproof.chain_id);
 
   //attempt to remove up to 2 proofs
   gc_proofs(chain_itr->name, 2);
   //attempt to remove up to 2 schedules
-  gc_schedules(chain_itr->name, 2);
+  gc_schedules(chain_itr->name, 2);*/
 
 }
 
@@ -821,6 +820,8 @@ ACTION bridge::checkproofb(heavyproof blockproof, actionproof actionproof){
 ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
 
   check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
+
+  print("verifying proof...\n");
 
   checksum256 headerDigest = blockproof.header.digest();
   checksum256 id = compute_block_id(headerDigest, blockproof.header.block_num());
@@ -849,8 +850,8 @@ ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
 
   checksum256 action_receipt_digest = sha256(serializedReceipt.data(), serializedReceipt.size());
 
-  print("action_digest : ", action_digest, "\n");
-  print("action_receipt_digest : ", action_receipt_digest, "\n");
+  //print("action_digest : ", action_digest, "\n");
+  //print("action_receipt_digest : ", action_receipt_digest, "\n");
   
   check(actionproof.receipt.act_digest == action_digest, "digest of action doesn't match the digest in action_receipt");
 
@@ -859,10 +860,12 @@ ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
   }
   else check(proof_of_inclusion(actionproof.amproofpath, action_receipt_digest, blockproof.header.action_mroot), "invalid action merkle proof path");
   
-  print("id : ", id, "\n" );
+  //print("id : ", id, "\n" );
 
   check(proof_of_inclusion(blockproof.bmproofpath, id, blockproof.root), "invalid block merkle proof");
 
+  print("proof of inclusion for receipt digest : ",  action_receipt_digest," successfully verified\n");
+  
   //success
   
   //auto cid_index = _chainstable.get_index<"chainid"_n>();
