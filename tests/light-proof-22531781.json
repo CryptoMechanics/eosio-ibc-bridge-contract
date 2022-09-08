@@ -1,0 +1,76 @@
+{
+    "blockproof": {
+      "chain_id": "73e4385a2708e6d7048834fbc1079f2fabb17b3c125b146af438971e90716c4d",
+      "header": {
+        "timestamp": "2022-07-04T05:20:11.000",
+        "producer": "lioninjungle",
+        "previous": "0157cec41ca92c1baf26095f47f7c1d1dde50ccc5583561e1f0c00a03292281c",
+        "transaction_mroot": "0805d05bb61a4d746b076b8a7b8d7fc5e67f90e746fb3720f04f2255281d3d57",
+        "action_mroot": "a685a188eda01b2c2fe6e6d584397fbfc64b945c134dc2da7f6018458091dcdc",
+        "confirmed": 0,
+        "schedule_version": 29,
+        "new_producers": null,
+        "header_extensions": []
+      },
+      "root": "17e617990c708a5ddc3dad04ad597f55f043f20228e49bba2fa35d9a800f8294",
+      "bmproofpath": [
+        "8157cec6ba9fe5a380836e531ff13ea3db4d2f39ce8c9922fa382d621c3f6d2f",
+        "d0b0e6f493a53e3c3ec2c735ab54c7f42df29f1e85eeab112e1b2ceff408f7b3",
+        "44bf7bb29381a81a609044c2995fb1ee127a1c84e243c0db7d05ce793311c7bf",
+        "ef57b5c68923390ccca51c37ffe1d9c6b77acf05410e80ff1ba3e21bf75a4a7e",
+        "9b2fb36ca11dd3a14f2d61d36b3fafc6152d0dd201ed7f020587de3bfdd12b8d",
+        "c7f4da97f340577c58038798ef6756ca15e66f8a756163397a4634110052381f",
+        "3d5c8f14f44ef01711a1ecc1036e6ba1a3f2aea520551bdb4357daacb00b22e4",
+        "27a57780757adc600935991901987af45dd37803d112d5acea9ec8bd100cd95c",
+        "cd07013b51ec894be5ea44608a027b6d6b419ce652c9491a5d8aac6221389625",
+        "59b46800d9754d3443586fbbb159883209ae0dcb6b1e7b9a30df466dcd6d749d",
+        "27dc7edbdf9ba41e0d5625cc6f7179b626a2fdf6688eaf0422af35443ac44c54",
+        "41fc59e2ec21bc775ac52ce1f4ca9454ffd8bcc5ddf541c1a0d02b6780591e0e",
+        "835b5479d603cab1814e1982140f8ff6f47468a8ad04fbe7f75c40d5ba4f580b",
+        "d5afb8a16a84dba1ebcdffcc7c1584501be6e85c4c70540c82a67f2e2efe2431",
+        "7c4280dc0c8ced8260424fc30210a60033ac812a926dac89e5c2277d5e32695d",
+        "73139296699f0951ee29133f033a6fad14ae8096eb14464e03e0d434666e27e8",
+        "3a372d6977e5dee57dc396d38d8b3f684bf22ba8ed08de3fa29e78c543106fe0",
+        "04ac55eb8ef7e7cefa537e8ff1bfc49124b26d2152d65c5e044360118b0e87bc",
+        "59c1e8ad5647da9c9fa4c41f790181321bbf983ac827f46b26dd92228eaa0ad6",
+        "f82c63aef142c2bf2a108baffd029631630d90ff45f7f3692666b7ef59d44304",
+        "6c46b6da48bf541103096c9f23a57e608071f951bfe61d47b948d889e7ed27f3",
+        "deba79806fe3b4800369b5a57150ffcf17886f5b89018906f0b68d356c6f987a",
+        "17470bec734e5f6a716fc4cc3f6db3590817f9d27734a4c01d9160808048559e",
+        "b8c949eaf08c97a1d39daca318d41fecbec7302bf6714f796af7b338d9500c38",
+        "32320e40f0ac29475fede29002678a667f39664ff0891c406d64b4c7573dbd20"
+      ]
+    },
+    "actionproof": {
+      "receipt": {
+        "abi_sequence": "1",
+        "act_digest": "270d4d212c5dc277ab6b2f83e545ff00f762ee6573070e07a2dda288bdc896d4",
+        "auth_sequence": [
+          {
+            "account": "eosmechanics",
+            "sequence": "622851"
+          }
+        ],
+        "code_sequence": "1",
+        "global_sequence": "23795601",
+        "receiver": "eosmechanics",
+        "recv_sequence": "622845"
+      },
+      "action": {
+        "account": "eosmechanics",
+        "name": "cpu",
+        "authorization": [
+          {
+            "actor": "eosmechanics",
+            "permission": "benchmark"
+          }
+        ],
+        "data": ""
+      },
+      "amproofpath": [
+        "975e1144434eb636632225c49666d71c1b2c2abe74fafb0015ed58dc6627f8db",
+        "07166a7aab75c59144e5637318dd0387f3bbfdda1d61af746c6dc6c4c87fe3ce"
+      ],
+      "returnvalue": ""
+    }
+  }
