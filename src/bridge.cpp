@@ -785,8 +785,29 @@ void bridge::checkblockproof(heavyproof blockproof){
 
 }
 
+bridge::lightproof bridge::get_light_proof(){
+
+  lptable _light_proof("prooflink"_n, "prooflink"_n.value) ;
+
+  auto p = _light_proof.get();
+
+  return p.lp;
+}
+
+bridge::heavyproof bridge::get_heavy_proof(){
+
+  hptable _heavy_proof("prooflink"_n, "prooflink"_n.value) ;
+
+  auto p = _heavy_proof.get();
+
+  return p.hp;
+
+}
+
 //Verify a block without verifying an action using the heavy proof scheme
-ACTION bridge::checkproofa(heavyproof blockproof){
+ACTION bridge::checkproofa(){
+
+  heavyproof blockproof = get_heavy_proof();
 
   checkblockproof(blockproof);
   
@@ -801,7 +822,9 @@ ACTION bridge::checkproofa(heavyproof blockproof){
 }
 
 //Verify a block and an action using the heavy proof scheme
-ACTION bridge::checkproofb(heavyproof blockproof, actionproof actionproof){
+ACTION bridge::checkproofb(actionproof actionproof){
+
+  heavyproof blockproof = get_heavy_proof();
 
   checkblockproof(blockproof);
   checkactionproof(blockproof, actionproof);
@@ -817,7 +840,9 @@ ACTION bridge::checkproofb(heavyproof blockproof, actionproof actionproof){
 }
 
 //Verify an action using the light proof scheme
-ACTION bridge::checkproofc(lightproof blockproof, actionproof actionproof){
+ACTION bridge::checkproofc(actionproof actionproof){
+
+  lightproof blockproof = get_light_proof();
 
   check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
 

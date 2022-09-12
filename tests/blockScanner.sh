@@ -18,5 +18,5 @@ for i in $(seq $start $total)
 do
    echo "Get block $i..."
   # echo "$((a + 1))"
-   cleos -u https://jungle4.cryptolions.io:443 get block $i |jq '.transactions'
+   cleos -u https://eostestnet.goldenplatform.com get block $i |jq '.transactions'
 done

@@ -1,6 +1,7 @@
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
 #include <eosio/crypto.hpp>
+#include <eosio/singleton.hpp>
 
 #include <eosio/producer_schedule.hpp>
 #include <math.h>
@@ -278,7 +279,34 @@ CONTRACT bridge : public contract {
 
 		};
 		
-		
+      TABLE lpstruct {
+
+         uint64_t id;
+
+         bridge::lightproof lp;
+
+         uint64_t primary_key()const { return id; }
+
+         EOSLIB_SERIALIZE( lpstruct, (id)(lp) )
+
+      } _light_proof_obj;
+
+      TABLE hpstruct {
+
+         uint64_t id;
+
+         bridge::heavyproof hp;
+
+         uint64_t primary_key()const { return id; }
+
+         EOSLIB_SERIALIZE( hpstruct, (id)(hp) )
+
+      } _heavy_proof_obj;
+
+      using lptable = eosio::singleton<"lightproof"_n, lpstruct>;
+      using hptable = eosio::singleton<"heavyproof"_n, hpstruct>;
+
+
 	   typedef eosio::multi_index< "chains"_n, chain,
 	   	  indexed_by<"chainid"_n, const_mem_fun<chain, checksum256, &chain::by_chain_id>>> chainstable;
 
@@ -294,7 +322,7 @@ CONTRACT bridge : public contract {
 
 	   bridge( name receiver, name code, datastream<const char*> ds ) :
 	   contract(receiver, code, ds),
-	   _chainstable(receiver, receiver.value)
+	   _chainstable(receiver, receiver.value) 
 	   {
 	 
 	   }
@@ -305,11 +333,11 @@ CONTRACT bridge : public contract {
       //Two different proving schemes are available (heavy / light).
 
       //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block
-      ACTION checkproofa(heavyproof blockproof);
-      ACTION checkproofb(heavyproof blockproof, actionproof actionproof);
+      ACTION checkproofa();
+      ACTION checkproofb(actionproof actionproof);
 
       //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
-      ACTION checkproofc(lightproof blockproof, actionproof actionproof); 
+      ACTION checkproofc(actionproof actionproof); 
       
 
 
@@ -335,6 +363,9 @@ CONTRACT bridge : public contract {
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);
 
+		heavyproof get_heavy_proof();
+		lightproof get_light_proof();
+		
 		name get_chain_name(checksum256 chain_id);
 
 };
