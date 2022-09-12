@@ -785,18 +785,18 @@ void bridge::checkblockproof(heavyproof blockproof){
 
 }
 
-bridge::lightproof bridge::get_light_proof(){
+bridge::lightproof bridge::get_light_proof(name contract){
 
-  lptable _light_proof("prooflink"_n, "prooflink"_n.value) ;
+  lptable _light_proof(contract, contract.value) ;
 
   auto p = _light_proof.get();
 
   return p.lp;
 }
 
-bridge::heavyproof bridge::get_heavy_proof(){
+bridge::heavyproof bridge::get_heavy_proof(name contract){
 
-  hptable _heavy_proof("prooflink"_n, "prooflink"_n.value) ;
+  hptable _heavy_proof(contract, contract.value) ;
 
   auto p = _heavy_proof.get();
 
@@ -805,9 +805,9 @@ bridge::heavyproof bridge::get_heavy_proof(){
 }
 
 //Verify a block without verifying an action using the heavy proof scheme
-ACTION bridge::checkproofa(){
+ACTION bridge::checkproofa(name contract){
 
-  heavyproof blockproof = get_heavy_proof();
+  heavyproof blockproof = get_heavy_proof(contract);
 
   checkblockproof(blockproof);
   
@@ -822,9 +822,9 @@ ACTION bridge::checkproofa(){
 }
 
 //Verify a block and an action using the heavy proof scheme
-ACTION bridge::checkproofb(actionproof actionproof){
+ACTION bridge::checkproofb(name contract, actionproof actionproof){
 
-  heavyproof blockproof = get_heavy_proof();
+  heavyproof blockproof = get_heavy_proof(contract);
 
   checkblockproof(blockproof);
   checkactionproof(blockproof, actionproof);
@@ -840,9 +840,9 @@ ACTION bridge::checkproofb(actionproof actionproof){
 }
 
 //Verify an action using the light proof scheme
-ACTION bridge::checkproofc(actionproof actionproof){
+ACTION bridge::checkproofc(name contract, actionproof actionproof){
 
-  lightproof blockproof = get_light_proof();
+  lightproof blockproof = get_light_proof(contract);
 
   check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
 

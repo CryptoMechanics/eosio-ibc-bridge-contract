@@ -333,11 +333,11 @@ CONTRACT bridge : public contract {
       //Two different proving schemes are available (heavy / light).
 
       //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block
-      ACTION checkproofa();
-      ACTION checkproofb(actionproof actionproof);
+      ACTION checkproofa(name contract);
+      ACTION checkproofb(name contract, actionproof actionproof);
 
       //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
-      ACTION checkproofc(actionproof actionproof); 
+      ACTION checkproofc(name contract, actionproof actionproof); 
       
 
 
@@ -363,8 +363,8 @@ CONTRACT bridge : public contract {
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);
 
-		heavyproof get_heavy_proof();
-		lightproof get_light_proof();
+		heavyproof get_heavy_proof(name contract);
+		lightproof get_light_proof(name contract);
 		
 		name get_chain_name(checksum256 chain_id);
 
