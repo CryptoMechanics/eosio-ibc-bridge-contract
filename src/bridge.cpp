@@ -677,6 +677,11 @@ void bridge::checkblockproof(heavyproof blockproof){
 
     std::vector<checksum256> bmproofpath = map_hashes(blockproof.hashes, blockproof.bftproof[i].bmproofpath);
 
+    //print("bft proof : ", i , "\n");
+
+    //print("id : ", id, "\n");
+    //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
+
     //bmproofpath is supplied by the user, id is computed from the (signed and verified) blocktoprove header and merkle root is verified by being part of the signed digest 
     check(proof_of_inclusion(bmproofpath, id, blockproof.bftproof[i].previous_bmroot), "invalid block merkle proof path");
 
@@ -843,6 +848,96 @@ ACTION bridge::checkproofb(name contract, actionproof actionproof){
 ACTION bridge::checkproofc(name contract, actionproof actionproof){
 
   lightproof blockproof = get_light_proof(contract);
+
+  check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
+
+  print("verifying proof...\n");
+
+  checksum256 headerDigest = blockproof.header.digest();
+  checksum256 id = compute_block_id(headerDigest, blockproof.header.block_num());
+
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  check(chain_itr != cid_index.end(), "chain not supported");
+
+  checksum256 action_digest;
+
+  if (chain_itr->return_value_activated > 0 && blockproof.header.block_num() > chain_itr->return_value_activated ){
+    r_action ra =  {actionproof.action.account, actionproof.action.name, actionproof.action.authorization, actionproof.action.data};
+
+    action_digest = generate_action_digest(ra, actionproof.returnvalue);
+  }
+  else {
+    std::vector<char> serializedAction = pack(actionproof.action);
+    action_digest = sha256(serializedAction.data(), serializedAction.size());
+  }
+
+  //std::vector<char> serializedAction = pack(actionproof.action);
+  //checksum256 action_digest = sha256(serializedAction.data(), serializedAction.size());
+
+  std::vector<char> serializedReceipt = pack(actionproof.receipt);
+
+  checksum256 action_receipt_digest = sha256(serializedReceipt.data(), serializedReceipt.size());
+
+  //print("action_digest : ", action_digest, "\n");
+  //print("action_receipt_digest : ", action_receipt_digest, "\n");
+  
+  check(actionproof.receipt.act_digest == action_digest, "digest of action doesn't match the digest in action_receipt");
+
+  if (actionproof.amproofpath.size() == 1 && actionproof.amproofpath[0] == action_receipt_digest){
+    check(blockproof.header.action_mroot == action_receipt_digest, "invalid action merkle proof path");
+  }
+  else check(proof_of_inclusion(actionproof.amproofpath, action_receipt_digest, blockproof.header.action_mroot), "invalid action merkle proof path");
+  
+  //print("id : ", id, "\n" );
+
+  check(proof_of_inclusion(blockproof.bmproofpath, id, blockproof.root), "invalid block merkle proof");
+
+  print("proof of inclusion for receipt digest : ",  action_receipt_digest," successfully verified\n");
+  
+  //success
+  
+  //auto cid_index = _chainstable.get_index<"chainid"_n>();
+  //auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
+}
+
+ACTION bridge::checkproofd(heavyproof blockproof){
+
+  checkblockproof(blockproof);
+  
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
+}
+
+ACTION bridge::checkproofe(heavyproof blockproof, actionproof actionproof){
+
+  checkblockproof(blockproof);
+  checkactionproof(blockproof, actionproof);
+
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+
+  //attempt to remove up to 2 proofs
+  gc_proofs(chain_itr->name, 2);
+  //attempt to remove up to 2 schedules
+  gc_schedules(chain_itr->name, 2);
+
+}
+
+ACTION bridge::checkprooff(lightproof blockproof, actionproof actionproof){
 
   check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
 

@@ -332,13 +332,18 @@ CONTRACT bridge : public contract {
 
       //Two different proving schemes are available (heavy / light).
 
-      //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block
+      //For the heavy proof scheme, user has the option to prove both a block and an action, or only a block. Use with inline action
       ACTION checkproofa(name contract);
       ACTION checkproofb(name contract, actionproof actionproof);
 
-      //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block
+      //Using the light proof scheme, a user can use the heavy proof of a block saved previously to prove any action that has occured prior to or as part of that block. Use with inline action
       ACTION checkproofc(name contract, actionproof actionproof); 
       
+      //Same verification, but meant to be used directly instead of inline
+      ACTION checkproofd(heavyproof blockproof);
+      ACTION checkproofe(heavyproof blockproof, actionproof actionproof);
+
+      ACTION checkprooff(lightproof blockproof, actionproof actionproof); 
 
 
       //to be removed
