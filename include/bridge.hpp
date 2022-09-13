@@ -362,6 +362,10 @@ CONTRACT bridge : public contract {
 		void gc_proofs(name chain, int count);
 		void gc_schedules(name chain, int count);
 
+		void _checkproofa(heavyproof blockproof);
+		void _checkproofb(heavyproof blockproof, actionproof actionproof);
+		void _checkproofc(lightproof blockproof, actionproof actionproof);
+
 		void checkblockproof(heavyproof blockproof);
 		void checkactionproof(heavyproof blockproof, actionproof actionproof);
 
