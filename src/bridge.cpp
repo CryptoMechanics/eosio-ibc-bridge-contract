@@ -549,18 +549,18 @@ ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value
 
 }
 
-void bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
+void bridge::checkactionproof(checksum256 chain_id, blockheader blockheader, actionproof actionproof){
 
   //Prove action
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
-  auto chain_itr = cid_index.find(blockproof.chain_id);
+  auto chain_itr = cid_index.find(chain_id);
 
   check(chain_itr != cid_index.end(), "chain not supported");
 
   checksum256 actionDigest;
 
-  uint32_t block_num = blockproof.blocktoprove.block.header.block_num();
+  uint32_t block_num = blockheader.block_num();
 
   print("Proving action : ", actionproof.action.account, "::", actionproof.action.name, "\n");
 
@@ -602,9 +602,9 @@ void bridge::checkactionproof(heavyproof blockproof, actionproof actionproof){
   print("receiptDigest ", receiptDigest, "\n");
 
   if (actionproof.amproofpath.size() == 1 && actionproof.amproofpath[0] == receiptDigest){
-    check(blockproof.blocktoprove.block.header.action_mroot == receiptDigest, "invalid action merkle proof path");
+    check(blockheader.action_mroot == receiptDigest, "invalid action merkle proof path");
   }
-  else check(proof_of_inclusion(actionproof.amproofpath, receiptDigest, blockproof.blocktoprove.block.header.action_mroot), "invalid action merkle proof path");
+  else check(proof_of_inclusion(actionproof.amproofpath, receiptDigest, blockheader.action_mroot), "invalid action merkle proof path");
   
   print("action inclusion ", actionDigest, " successfully proved", "\n");
 
@@ -642,8 +642,8 @@ void bridge::checkblockproof(heavyproof blockproof){
 
   }
 
-  checksum256 headerDigest = blockproof.blocktoprove.block.header.digest();
-  checksum256 id = compute_block_id(headerDigest, blockproof.blocktoprove.block.header.block_num());
+  checksum256 header_digest = blockproof.blocktoprove.block.header.digest();
+  checksum256 id = compute_block_id(header_digest, blockproof.blocktoprove.block.header.block_num());
 
   //Prove block authenticity
 
@@ -680,10 +680,16 @@ void bridge::checkblockproof(heavyproof blockproof){
     //print("bft proof : ", i , "\n");
 
     //print("id : ", id, "\n");
-    //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
+   //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
 
+    //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
+    
     //bmproofpath is supplied by the user, id is computed from the (signed and verified) blocktoprove header and merkle root is verified by being part of the signed digest 
     check(proof_of_inclusion(bmproofpath, id, blockproof.bftproof[i].previous_bmroot), "invalid block merkle proof path");
+
+    header_digest = blockproof.bftproof[i].header.digest(); //compute current block's header digest
+
+    id = compute_block_id(header_digest, blockproof.bftproof[i].header.block_num()); //compute current BFT proof block id for next verification
 
     uint32_t bft_schedule_version = blockproof.bftproof[i].header.schedule_version;
 
@@ -709,7 +715,7 @@ void bridge::checkblockproof(heavyproof blockproof){
 
     }
 
-    check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, blockproof.bftproof[i].header.digest(), blockproof.bftproof[i].previous_bmroot,  producer_schedule, producer_schedule_hash );
+    check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule, producer_schedule_hash );
 
     //print("BFT proof ", i," (block ", block_num, ") successfully proven \n");
 
@@ -826,7 +832,7 @@ void bridge::_checkproofa(heavyproof blockproof){
 void bridge::_checkproofb(heavyproof blockproof, actionproof actionproof){
 
   checkblockproof(blockproof);
-  checkactionproof(blockproof, actionproof);
+  checkactionproof(blockproof.chain_id, blockproof.blocktoprove.block.header, actionproof);
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
   auto chain_itr = cid_index.find(blockproof.chain_id);
@@ -840,16 +846,22 @@ void bridge::_checkproofb(heavyproof blockproof, actionproof actionproof){
 
 void bridge::_checkproofc(lightproof blockproof, actionproof actionproof){
 
-  check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
-
   print("verifying proof...\n");
+
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_itr = cid_index.find(blockproof.chain_id);
+  
+  check_proven_root(get_chain_name(blockproof.chain_id), blockproof.root);
 
   checksum256 headerDigest = blockproof.header.digest();
   checksum256 id = compute_block_id(headerDigest, blockproof.header.block_num());
 
-  auto cid_index = _chainstable.get_index<"chainid"_n>();
-  auto chain_itr = cid_index.find(blockproof.chain_id);
+  check(proof_of_inclusion(blockproof.bmproofpath, id, blockproof.root), "invalid block merkle proof");
+  
+  checkactionproof(blockproof.chain_id, blockproof.header, actionproof);
 
+
+/*
   check(chain_itr != cid_index.end(), "chain not supported");
 
   checksum256 action_digest;
@@ -883,10 +895,8 @@ void bridge::_checkproofc(lightproof blockproof, actionproof actionproof){
   
   //print("id : ", id, "\n" );
 
-  check(proof_of_inclusion(blockproof.bmproofpath, id, blockproof.root), "invalid block merkle proof");
-
   print("proof of inclusion for receipt digest : ",  action_receipt_digest," successfully verified\n");
-  
+  */
   //success
   
   //auto cid_index = _chainstable.get_index<"chainid"_n>();

@@ -367,7 +367,8 @@ CONTRACT bridge : public contract {
 		void _checkproofc(lightproof blockproof, actionproof actionproof);
 
 		void checkblockproof(heavyproof blockproof);
-		void checkactionproof(heavyproof blockproof, actionproof actionproof);
+		
+		void checkactionproof(checksum256 chain_id, blockheader blockheader, actionproof actionproof);
 
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);
