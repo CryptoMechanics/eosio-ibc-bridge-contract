@@ -16,7 +16,6 @@
 //
 //  197997700 new_producer_schedule announced
 //  197998035 schedule version incremented
-//  249888683 deferred transaction execution
 //
 // UX Network Mainnet -
 //
@@ -44,6 +43,9 @@
 //  24562480 new_producer_schedule announced (v36 to v37)
 //  24562817 schedule_version incremented
 //  25078997 ACTION_RETURN_VALUE feature activated
+
+// Telos Testnet
+//   196028036 new_producers announced (v2813 to v2814)
 
 //Set 1st bit to 0 a node is a left side node for merkle concatenation + hash
 checksum256 make_canonical_left(const checksum256& val) {
@@ -221,7 +223,7 @@ bool proof_of_inclusion(std::vector<checksum256> proof_nodes, checksum256 target
 }
 
 //Find the producer's authority from the schedule
-block_signing_authority_v0 get_producer_authority(bridge::schedule schedule, name producer){
+block_signing_authority_v0 get_producer_authority(bridge::schedulev2 schedule, name producer){
   for (int i = 0; i <schedule.producers.size(); i++){
     if (schedule.producers[i].producer_name == producer){
       return std::get<0>(schedule.producers[i].authority);
@@ -255,7 +257,7 @@ bool auth_satisfied(const block_signing_authority_v0 authority, std::vector<publ
 }
 
 //prepare the digest to sign from its base components, recover the key(s) from the signature(s) and verify if we enough signatures matching keys to satisfy authorization requirements
- void check_signatures(name producer, std::vector<signature> producer_signatures, checksum256 header_digest, checksum256 previous_bmroot, bridge::schedule producer_schedule, checksum256 producer_schedule_hash ){
+ void check_signatures(name producer, std::vector<signature> producer_signatures, checksum256 header_digest, checksum256 previous_bmroot, bridge::schedulev2 producer_schedule, checksum256 producer_schedule_hash ){
 
   checksum256 header_bmroot = hash_pair( std::make_pair( header_digest, previous_bmroot) );
   checksum256 digest_to_sign = hash_pair( std::make_pair( header_bmroot, producer_schedule_hash) );
@@ -266,12 +268,38 @@ bool auth_satisfied(const block_signing_authority_v0 authority, std::vector<publ
     signing_keys.push_back(recover_key(digest_to_sign, sig));
   }
 
-  check(auth_satisfied(auth, signing_keys), "invalid BFT block signatures");
+  check(auth_satisfied(auth, signing_keys), "invalid block signature(s)");
+
+}
+
+public_key get_producer_key(producer_schedule schedule, name producer){
+
+  for (int i = 0; i <schedule.producers.size(); i++){
+
+    if (schedule.producers[i].producer_name == producer){
+      return schedule.producers[i].block_signing_key;
+    }
+
+  }
+
+  check(false, "producer not in current schedule");
+}
+
+void check_signatures(name producer, signature producer_signature, checksum256 header_digest, checksum256 previous_bmroot, producer_schedule producer_schedule, checksum256 producer_schedule_hash ){
+
+  checksum256 header_bmroot = hash_pair( std::make_pair( header_digest, previous_bmroot) );
+  checksum256 digest_to_sign = hash_pair( std::make_pair( header_bmroot, producer_schedule_hash) );
+
+  public_key key = get_producer_key(producer_schedule, producer);
+
+  assert_recover_key(digest_to_sign, producer_signature, key);
+
+  //check(auth_satisfied(auth, signing_keys), "invalid block signature(s)");
 
 }
 
 //verify the integrity and authentiticy of a block header, compute and return its predecessor's merkle root
-checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum256> &active_nodes, uint64_t node_count, bridge::schedule& producer_schedule, checksum256& producer_schedule_hash){
+checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum256> &active_nodes, uint64_t node_count, bridge::schedulev2& producer_schedule, checksum256& producer_schedule_hash){
 
   //schedule version of the header must match either current or pending schedule version
   check(block.header.schedule_version == producer_schedule.version || block.header.schedule_version == producer_schedule.version -1, "invalid schedule version");
@@ -281,7 +309,17 @@ checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum2
   checksum256 previous_bmroot = append(block.header.previous, active_nodes, node_count); //we must calculate previous_bmroot ourselves, otherwise we can't trust the activeNodes
   checksum256 current_bmroot = append(block.header.block_id(), active_nodes, node_count); //we can now safely calculate the current_bmroot, which we will store
 
-  // if block contains a new schedule, we use that schedule hash from now on when preparing the digest to sign to verify signatures
+  // if block contains a new schedule (old format), we use that schedule hash from now on when preparing the digest to sign to verify signatures
+  if (block.header.new_producers.has_value()){
+
+    auto new_producer_schedule = *block.header.new_producers;
+
+    std::vector<char> serializedSchedule = pack(new_producer_schedule);
+    producer_schedule_hash  = sha256(serializedSchedule.data(), serializedSchedule.size());
+
+  }
+
+  // if block contains a new schedule (new format), we use that schedule hash from now on when preparing the digest to sign to verify signatures
   if (block.header.header_extensions.size() > 0) {
     for (const auto& ext : block.header.header_extensions) {
       if (ext.first == 1) {
@@ -294,6 +332,43 @@ checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum2
 
   //check signatures
   check_signatures(block.header.producer, block.producer_signatures, header_digest, previous_bmroot, producer_schedule, producer_schedule_hash);
+
+  return previous_bmroot;
+
+}
+checksum256 check_block_header(bridge::sblockheader block, std::vector<checksum256> &active_nodes, uint64_t node_count, producer_schedule& producer_schedule, checksum256& producer_schedule_hash){
+
+  //schedule version of the header must match either current or pending schedule version
+  check(block.header.schedule_version == producer_schedule.version || block.header.schedule_version == producer_schedule.version -1, "invalid schedule version");
+
+  checksum256 header_digest = block.header.digest();
+
+  checksum256 previous_bmroot = append(block.header.previous, active_nodes, node_count); //we must calculate previous_bmroot ourselves, otherwise we can't trust the activeNodes
+  checksum256 current_bmroot = append(block.header.block_id(), active_nodes, node_count); //we can now safely calculate the current_bmroot, which we will store
+
+  // if block contains a new schedule (old format), we use that schedule hash from now on when preparing the digest to sign to verify signatures
+  if (block.header.new_producers.has_value()){
+
+    auto new_producer_schedule = *block.header.new_producers;
+
+    std::vector<char> serializedSchedule = pack(new_producer_schedule);
+    producer_schedule_hash  = sha256(serializedSchedule.data(), serializedSchedule.size());
+
+  }
+
+  // if block contains a new schedule (new format), we use that schedule hash from now on when preparing the digest to sign to verify signatures
+  if (block.header.header_extensions.size() > 0) {
+    for (const auto& ext : block.header.header_extensions) {
+      if (ext.first == 1) {
+        auto new_producer_schedule_hash_packed = ext.second;
+        producer_schedule_hash = sha256(new_producer_schedule_hash_packed.data(), new_producer_schedule_hash_packed.size());
+
+      }
+    }
+  }
+
+  //check signatures
+  check_signatures(block.header.producer, block.producer_signatures[0], header_digest, previous_bmroot, producer_schedule, producer_schedule_hash);
 
   return previous_bmroot;
 
@@ -513,7 +588,7 @@ std::vector<checksum256> map_hashes(std::vector<checksum256> dictionary, std::ve
     return result;
 }
 
-ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value_activated, schedule initial_schedule ) {
+ACTION bridge::inita(name chain_name, checksum256 chain_id, uint32_t return_value_activated, producer_schedule initial_schedule ) {
 
   require_auth(_self);
 
@@ -541,7 +616,46 @@ ACTION bridge::init(name chain_name, checksum256 chain_id, uint32_t return_value
   chainschedulestable _schedulestable(_self, chain_name.value);
   _schedulestable.emplace( get_self(), [&]( auto& c ) {
     c.version = initial_schedule.version;
-    c.producer_schedule = initial_schedule;
+    c.producer_schedule_v1 = initial_schedule;
+    c.producer_schedule_v2 = {};
+    c.hash = sha256(serializedSchedule.data(), serializedSchedule.size());
+    c.first_block = 0;
+    c.last_block = ULONG_MAX;
+    c.expiry = time_point(seconds(expiry));
+  });
+
+}
+
+ACTION bridge::initb(name chain_name, checksum256 chain_id, uint32_t return_value_activated, bridge::schedulev2 initial_schedule ) {
+
+  require_auth(_self);
+
+  auto chain_itr = _chainstable.find(chain_name.value);
+
+  auto cid_index = _chainstable.get_index<"chainid"_n>();
+  auto chain_id_itr = cid_index.find(chain_id);
+
+  check(chain_itr==_chainstable.end(), "chain name already present");
+  check(chain_id_itr==cid_index.end(), "chain id already present");
+
+  std::vector<char> serializedSchedule = pack(initial_schedule);
+
+  // add new chain to chains table
+  _chainstable.emplace( get_self(), [&]( auto& c ) {
+    c.name = chain_name;
+    c.chain_id = chain_id;
+    c.return_value_activated = return_value_activated;
+  });
+
+  time_point cts = current_time_point();
+
+  uint64_t expiry = cts.sec_since_epoch() + SCHEDULE_CACHING_DURATION; //One day-minimum caching
+
+  chainschedulestable _schedulestable(_self, chain_name.value);
+  _schedulestable.emplace( get_self(), [&]( auto& c ) {
+    c.version = initial_schedule.version;
+    c.producer_schedule_v1 = {};
+    c.producer_schedule_v2 = initial_schedule;
     c.hash = sha256(serializedSchedule.data(), serializedSchedule.size());
     c.first_block = 0;
     c.last_block = ULONG_MAX;
@@ -623,7 +737,13 @@ void bridge::checkblockproof(heavyproof blockproof){
 
   check(sched_itr != _schedulestable.end(), "schedule not supported");
 
-  bridge::schedule producer_schedule = sched_itr->producer_schedule;
+  bool new_schedule_format = sched_itr->producer_schedule_v1.version == 0;
+
+  print("new_schedule_format : ", new_schedule_format, "\n");
+
+  producer_schedule producer_schedule_v1 = sched_itr->producer_schedule_v1;
+  bridge::schedulev2 producer_schedule_v2 = sched_itr->producer_schedule_v2;
+
   checksum256 producer_schedule_hash = sched_itr->hash;
 
   uint32_t block_num = blockproof.blocktoprove.block.header.block_num();
@@ -632,13 +752,17 @@ void bridge::checkblockproof(heavyproof blockproof){
   //if current block_num is greater than the schedule's last block, change schedule
   if (block_num>sched_itr->last_block){
 
-    sched_itr = _schedulestable.find(sched_itr->producer_schedule.version+1);
+    if (new_schedule_format) sched_itr = _schedulestable.find(sched_itr->producer_schedule_v2.version+1);
+    else sched_itr = _schedulestable.find(sched_itr->producer_schedule_v1.version+1);
 
     check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
 
-    print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule.version, ").\n");
+    if (new_schedule_format) print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v2.version, ").\n");
+    else print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v1.version, ").\n");
 
-    producer_schedule = sched_itr->producer_schedule;
+    producer_schedule_v1 = sched_itr->producer_schedule_v1;
+    producer_schedule_v2 = sched_itr->producer_schedule_v2;
+
     producer_schedule_hash = sched_itr->hash;
 
   }
@@ -656,7 +780,10 @@ void bridge::checkblockproof(heavyproof blockproof){
     
   std::vector<checksum256> active = map_hashes(hashes, an);
 
-  checksum256 bm_root = check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule, producer_schedule_hash);
+  checksum256 bm_root;
+
+  if (new_schedule_format) bm_root = check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule_v2, producer_schedule_hash);
+  else check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule_v1, producer_schedule_hash);;
 
   add_proven_root(get_chain_name(blockproof.chain_id), block_num, bm_root);
 
@@ -667,7 +794,10 @@ void bridge::checkblockproof(heavyproof blockproof){
   uint32_t schedule_version = blockproof.blocktoprove.block.header.schedule_version;
 
   //under current consensus model, threshold for finality is set at 2/3+1. Since blocktoprove counts for 1, and last block of a round counts as the first block for next round, we can use 2/3 here instead.
-  uint32_t threshold_for_finality = producer_schedule.producers.size() * 2 / 3;
+  uint32_t threshold_for_finality;
+
+  if (new_schedule_format) threshold_for_finality = producer_schedule_v2.producers.size() * 2 / 3;
+  else threshold_for_finality = producer_schedule_v1.producers.size() * 2 / 3;
 
   check(blockproof.bftproof.size()==threshold_for_finality*2, "invalid number of bft proofs");
 
@@ -678,7 +808,7 @@ void bridge::checkblockproof(heavyproof blockproof){
 
     std::vector<checksum256> bmproofpath = map_hashes(blockproof.hashes, blockproof.bftproof[i].bmproofpath);
 
-    //print("bft proof : ", i , "\n");
+    print("bft proof : ", i , "\n");
 
     //print("id : ", id, "\n");
    //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
@@ -705,18 +835,22 @@ void bridge::checkblockproof(heavyproof blockproof){
     //if current block_num is greater than the schedule's last block, change schedule
     if (block_num>sched_itr->last_block){
 
-      sched_itr = _schedulestable.find(sched_itr->producer_schedule.version+1);
+      if (new_schedule_format) sched_itr = _schedulestable.find(sched_itr->producer_schedule_v2.version+1);
+      else sched_itr = _schedulestable.find(sched_itr->producer_schedule_v1.version+1);
 
       check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
 
-      print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule.version, ").\n");
+      if (new_schedule_format) print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v2.version, ").\n");
+      else print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v1.version, ").\n");
 
-      producer_schedule = sched_itr->producer_schedule;
+      producer_schedule_v1 = sched_itr->producer_schedule_v1;
+      producer_schedule_v2 = sched_itr->producer_schedule_v2;
       producer_schedule_hash = sched_itr->hash;
 
     }
 
-    check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule, producer_schedule_hash );
+    if (new_schedule_format) check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule_v2, producer_schedule_hash );
+    else check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures[0], header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule_v1, producer_schedule_hash );
 
     //print("BFT proof ", i," (block ", block_num, ") successfully proven \n");
 
@@ -751,14 +885,57 @@ void bridge::checkblockproof(heavyproof blockproof){
   check(round1_bft_producers.size() == threshold_for_finality, "not enough BFT proofs to prove finality");
   check(round2_bft_producers.size() == threshold_for_finality, "not enough BFT proofs to prove finality");
 
-  // if block header contains a new schedule, unpack and add it to schedules for chain
+
+  print("new producers : ", blockproof.blocktoprove.block.header.new_producers->version, "\n");
+
+  // if block header contains a new schedule using old new_producers format, add it to schedules for chain
+  if (blockproof.blocktoprove.block.header.new_producers.has_value()){
+
+    producer_schedule new_producer_schedule = *blockproof.blocktoprove.block.header.new_producers;
+
+    std::vector<char> serializedSchedule = pack(new_producer_schedule);
+
+    auto schedule_hash = sha256(serializedSchedule.data(), serializedSchedule.size());
+
+    auto sched_itr = _schedulestable.find(new_producer_schedule.version-1);
+    check(sched_itr!=_schedulestable.end(), "must prove missing schedules in correct sequence");
+
+    _schedulestable.modify(sched_itr, get_self(), [&]( auto& c ) {
+      c.last_block = blockproof.blocktoprove.block.header.block_num()-1;
+    });
+
+    sched_itr = _schedulestable.find(new_producer_schedule.version);
+    
+    if (sched_itr == _schedulestable.end()) {
+          
+      time_point cts = current_time_point();
+
+      uint64_t expiry = cts.sec_since_epoch() + SCHEDULE_CACHING_DURATION;
+
+      _schedulestable.emplace( get_self(), [&]( auto& c ) {
+        c.version = new_producer_schedule.version;
+        c.producer_schedule_v1 = new_producer_schedule;
+        c.hash = schedule_hash;
+        c.first_block = blockproof.blocktoprove.block.header.block_num();
+        c.last_block = ULONG_MAX;
+        c.expiry = time_point(seconds(expiry)) ;
+      });
+
+      print("proved new schedule (old format), hash: ", schedule_hash, "\n");
+
+
+    }
+
+  }
+
+  // if block header contains a new schedule using new header_extensions format, unpack and add it to schedules for chain
   if (blockproof.blocktoprove.block.header.header_extensions.size() > 0) {
     for (const auto& ext : blockproof.blocktoprove.block.header.header_extensions) {
       if (ext.first == 1) {
         auto new_schedule_hash_packed = ext.second;
 
         // unpack new schedule
-        schedule new_producer_schedule = unpack<bridge::schedule>(new_schedule_hash_packed);
+        schedulev2 new_producer_schedule = unpack<bridge::schedulev2>(new_schedule_hash_packed);
         auto schedule_hash = sha256(new_schedule_hash_packed.data(), new_schedule_hash_packed.size());
 
         // set end_block for previous schedule
@@ -780,14 +957,14 @@ void bridge::checkblockproof(heavyproof blockproof){
 
           _schedulestable.emplace( get_self(), [&]( auto& c ) {
             c.version = new_producer_schedule.version;
-            c.producer_schedule = new_producer_schedule;
+            c.producer_schedule_v2 = new_producer_schedule;
             c.hash = schedule_hash;
             c.first_block = blockproof.blocktoprove.block.header.block_num();
             c.last_block = ULONG_MAX;
             c.expiry = time_point(seconds(expiry)) ;
           });
 
-          print("proved new schedule, hash: ", schedule_hash, "\n");
+          print("proved new schedule (old format), hash: ", schedule_hash, "\n");
 
 
         }
