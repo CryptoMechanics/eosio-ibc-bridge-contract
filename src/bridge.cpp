@@ -783,7 +783,7 @@ void bridge::checkblockproof(heavyproof blockproof){
   checksum256 bm_root;
 
   if (new_schedule_format) bm_root = check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule_v2, producer_schedule_hash);
-  else check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule_v1, producer_schedule_hash);;
+  else bm_root = check_block_header(blockproof.blocktoprove.block, active, node_count, producer_schedule_v1, producer_schedule_hash);;
 
   add_proven_root(get_chain_name(blockproof.chain_id), block_num, bm_root);
 
