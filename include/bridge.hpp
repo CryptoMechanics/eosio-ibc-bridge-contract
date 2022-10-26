@@ -375,6 +375,8 @@ CONTRACT bridge : public contract {
 		void add_proven_root(name chain, uint32_t block_num, checksum256 root);
 		void check_proven_root(name chain, checksum256 root);
 
+		checksum256 get_next_schedule_hash(name chain_name, uint32_t schedule_version);
+
 		heavyproof get_heavy_proof(name contract);
 		lightproof get_light_proof(name contract);
 		

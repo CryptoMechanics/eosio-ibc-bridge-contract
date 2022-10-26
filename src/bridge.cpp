@@ -588,6 +588,27 @@ std::vector<checksum256> map_hashes(std::vector<checksum256> dictionary, std::ve
     return result;
 }
 
+checksum256 bridge::get_next_schedule_hash(name chain_name, uint32_t schedule_version){
+
+
+    chainschedulestable _schedulestable(_self, chain_name.value);
+    auto sched_itr = _schedulestable.find(schedule_version);
+
+    check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
+
+    if (sched_itr->producer_schedule_v2.version>0) {
+      print("switched to newer schedule (", sched_itr->producer_schedule_v2.version, ").\n");
+    }
+    else {
+      print("switched to newer schedule (", sched_itr->producer_schedule_v1.version, ").\n");
+    }
+
+    print("new schedule hash is ", sched_itr->hash , "\n");
+
+    return sched_itr->hash;
+
+}
+
 ACTION bridge::inita(name chain_name, checksum256 chain_id, uint32_t return_value_activated, producer_schedule initial_schedule ) {
 
   require_auth(_self);
@@ -749,21 +770,20 @@ void bridge::checkblockproof(heavyproof blockproof){
   uint32_t block_num = blockproof.blocktoprove.block.header.block_num();
   uint32_t previous_block_num = block_num;
 
-  //if current block_num is greater than the schedule's last block, change schedule
-  if (block_num>sched_itr->last_block){
+  bool schedule_hash_updated = false;
 
-    if (new_schedule_format) sched_itr = _schedulestable.find(sched_itr->producer_schedule_v2.version+1);
-    else sched_itr = _schedulestable.find(sched_itr->producer_schedule_v1.version+1);
+  print("Current schedule last block is : ", sched_itr->last_block, "\n");
+      
+  //if current block_num is greater than the schedule's last block, get next schedule hash
+  if (block_num>sched_itr->last_block && !schedule_hash_updated){
 
-    check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
+    print("Current block is : ", block_num);
+    print("Schedule no longer in force. Checking for new pending schedule hash...\n");
 
-    if (new_schedule_format) print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v2.version, ").\n");
-    else print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v1.version, ").\n");
+    if (new_schedule_format) producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v2.version+1);
+    else producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v1.version+1);
 
-    producer_schedule_v1 = sched_itr->producer_schedule_v1;
-    producer_schedule_v2 = sched_itr->producer_schedule_v2;
-
-    producer_schedule_hash = sched_itr->hash;
+    schedule_hash_updated=true;
 
   }
 
@@ -832,25 +852,37 @@ void bridge::checkblockproof(heavyproof blockproof){
 
     previous_block_num = block_num;
 
-    //if current block_num is greater than the schedule's last block, change schedule
-    if (block_num>sched_itr->last_block){
+    //if current block_num is greater than the schedule's last block, get next schedule hash
+    if (block_num>sched_itr->last_block && !schedule_hash_updated){
 
-      if (new_schedule_format) sched_itr = _schedulestable.find(sched_itr->producer_schedule_v2.version+1);
-      else sched_itr = _schedulestable.find(sched_itr->producer_schedule_v1.version+1);
+      print("Current block is : ", block_num);
+      print("Schedule no longer in force. Checking for new pending schedule hash...\n");
 
-      check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
+      if (new_schedule_format) producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v2.version+1);
+      else producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v1.version+1);
+      
+      schedule_hash_updated=true;
 
-      if (new_schedule_format) print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v2.version, ").\n");
-      else print("switched to newer schedule at block ", block_num ," (", sched_itr->producer_schedule_v1.version, ").\n");
+    }
+
+    if (blockproof.bftproof[i].header.schedule_version==sched_itr->version+1){
+
+      sched_itr = _schedulestable.find(blockproof.bftproof[i].header.schedule_version);
+
+      check(sched_itr != _schedulestable.end(), "schedule not supported");
+
+      //bool new_schedule_format = sched_itr->producer_schedule_v1.version == 0;
+
+      //print("new_schedule_format : ", new_schedule_format, "\n");
 
       producer_schedule_v1 = sched_itr->producer_schedule_v1;
       producer_schedule_v2 = sched_itr->producer_schedule_v2;
-      producer_schedule_hash = sched_itr->hash;
 
     }
 
     if (new_schedule_format) check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures, header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule_v2, producer_schedule_hash );
     else check_signatures(blockproof.bftproof[i].header.producer, blockproof.bftproof[i].producer_signatures[0], header_digest, blockproof.bftproof[i].previous_bmroot,  producer_schedule_v1, producer_schedule_hash );
+   
 
     //print("BFT proof ", i," (block ", block_num, ") successfully proven \n");
 
