@@ -8,8 +8,6 @@
 
 using namespace eosio;
 
-
-
 CONTRACT bridge : public contract {
    public:
       using contract::contract;
@@ -21,7 +19,10 @@ CONTRACT bridge : public contract {
 		const name ACTIVATE_ACTION = "activate"_n;
 
 		//ACTION_RETURN_VALUE DIGEST : "c3a6138c5061cf291310887c0b5c71fcaffeab90d5deb50d3b9e687cead45071"
-		const uint8_t ACTION_RETURN_VALUE_ARRAY[32] = {195,166,19,140,80,97,207,41,19,16,136,124,11,92,113,252,175,254,171,144,213,222,181,13,59,158,104,124,234,212,80,113};
+		const uint8_t ACTION_RETURN_VALUE_ARRAY[32] = {	195,	166,	19,	140,	80,	97,	207,	41,
+																		19,	16,	136,	124,	11,	92,	113,	252,
+																		175,	254,	171,	144,	213,	222,	181,	13,
+																		59,	158,	104,	124,	234,	212,	80,	113};
 
 		const checksum256 ACTION_RETURN_VALUE_DIGEST = checksum256(ACTION_RETURN_VALUE_ARRAY);
 
