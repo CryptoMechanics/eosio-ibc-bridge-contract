@@ -21,10 +21,7 @@ CONTRACT bridge : public contract {
 		const name ACTIVATE_ACTION = "activate"_n;
 
 		//ACTION_RETURN_VALUE DIGEST : "c3a6138c5061cf291310887c0b5c71fcaffeab90d5deb50d3b9e687cead45071"
-		const uint8_t ACTION_RETURN_VALUE_ARRAY[32] = {	195,	166,	19,	140,	80,	97,	207,	41,	
-																		19,	16,	136,	124,	11,	92,	113,	252,	
-																		175,	254,	171,	144,	213,	222,	181,	13,	
-																		59,	158,	104,	124,	234,	212,	80,	113	};
+		const uint8_t ACTION_RETURN_VALUE_ARRAY[32] = {195,166,19,140,80,97,207,41,19,16,136,124,11,92,113,252,175,254,171,144,213,222,181,13,59,158,104,124,234,212,80,113};
 
 		const checksum256 ACTION_RETURN_VALUE_DIGEST = checksum256(ACTION_RETURN_VALUE_ARRAY);
 
@@ -33,12 +30,11 @@ CONTRACT bridge : public contract {
 
 		static uint32_t reverse_bytes(uint32_t input){
 
-		  int32_t output = (input>>24 & 0xff)|(input>>8 & 0xff00)|(input<<8 & 0xff0000)|(input<<24 & 0xff000000);
+		  uint32_t output = (input>>24 & 0xff)|(input>>8 & 0xff00)|(input<<8 & 0xff0000)|(input<<24 & 0xff000000);
 
 		  return output;
 
 		}
-
 
 		static checksum256 compute_block_id(checksum256 hash, uint32_t block_num) { 
 
@@ -356,14 +352,11 @@ CONTRACT bridge : public contract {
       ACTION clear();
 
 
-
-
-
-
       //garbage collection functions
 		void gc_proofs(name chain, int count);
 		void gc_schedules(name chain, int count);
 
+		//internal functions
 		void _checkproofa(heavyproof blockproof);
 		void _checkproofb(heavyproof blockproof, actionproof actionproof);
 		void _checkproofc(lightproof blockproof, actionproof actionproof);

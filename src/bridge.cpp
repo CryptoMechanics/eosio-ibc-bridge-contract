@@ -81,19 +81,8 @@ constexpr uint64_t next_power_of_2(uint64_t value) {
 }
 
 //Compute the number of layers required to create a merkle tree for a given number of leaves
-constexpr int clz_power_2(uint64_t value) {
-
-   int lz = 64;
-
-   if (value) lz--;
-   if (value & 0x00000000FFFFFFFFULL) lz -= 32;
-   if (value & 0x0000FFFF0000FFFFULL) lz -= 16;
-   if (value & 0x00FF00FF00FF00FFULL) lz -= 8;
-   if (value & 0x0F0F0F0F0F0F0F0FULL) lz -= 4;
-   if (value & 0x3333333333333333ULL) lz -= 2;
-   if (value & 0x5555555555555555ULL) lz -= 1;
-
-   return lz;
+constexpr int clz_power_of_2(uint64_t v) {
+    return 64 - (__builtin_clzl(v)+1); 
 }
 
 //Compute the maximum number of layers of a merkle tree for a given number of leaves
@@ -102,7 +91,7 @@ constexpr int calculate_max_depth(uint64_t node_count) {
       return 0;
    }
    auto implied_count = next_power_of_2(node_count);
-   return clz_power_2(implied_count) + 1;
+   return clz_power_of_2(implied_count) + 1;
 }
 
 //Moves nodes from one container to another
