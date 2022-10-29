@@ -348,7 +348,6 @@ CONTRACT bridge : public contract {
 		//to be removed
 
 		ACTION test(action a, std::vector<char> returnvalue);
-		ACTION test2(blockheader h);
 
 		ACTION clear();
 

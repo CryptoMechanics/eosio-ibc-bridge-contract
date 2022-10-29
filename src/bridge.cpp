@@ -81,18 +81,19 @@ constexpr uint64_t next_power_of_2(uint64_t value) {
 }
 
 //Compute the number of layers required to create a merkle tree for a given number of leaves
-constexpr int clz_power_of_2(uint64_t v) {
-    return 64 - (__builtin_clzl(v)+1); 
+constexpr uint64_t clz_power_of_2(uint64_t v) {
+    return 64 - (__builtin_clzll(v)+1); 
 }
 
 //Compute the maximum number of layers of a merkle tree for a given number of leaves
-constexpr int calculate_max_depth(uint64_t node_count) {
+constexpr uint64_t calculate_max_depth(uint64_t node_count) {
    if (node_count == 0) {
       return 0;
    }
    auto implied_count = next_power_of_2(node_count);
    return clz_power_of_2(implied_count) + 1;
 }
+
 
 //Moves nodes from one container to another
 template<typename ContainerA, typename ContainerB>
@@ -126,9 +127,9 @@ checksum256 hash_pair( std::pair<checksum256, checksum256> p){
 //Append a new leaf to an incremental merkle tree data structure, returning the resulting merkle root
 const checksum256& append(const checksum256& digest, std::vector<checksum256> &_active_nodes, uint64_t node_count) {
   bool partial = false;
-  uint32_t max_depth = calculate_max_depth(node_count + 1);
+  uint64_t max_depth = calculate_max_depth(node_count + 1);
 
-  auto implied_count = next_power_of_2(node_count);
+  //auto implied_count = next_power_of_2(node_count);
 
   auto current_depth = max_depth - 1;
   auto index = node_count;
@@ -1179,11 +1180,6 @@ ACTION bridge::test(action a, std::vector<char> returnvalue){
 
   //std::vector<char> serializedBase = pack(r_a);
 
-
-}
-
-
-ACTION bridge::test2(blockheader h){
 
 }
 
