@@ -235,7 +235,7 @@ CONTRACT bridge : public contract {
 			uint64_t primary_key()const { return name.value; }
 			checksum256 by_chain_id()const { return chain_id; }
 
-			EOSLIB_SERIALIZE( chain, (name)(chain_id)(return_value_activated) )
+			EOSLIB_SERIALIZE( chain, (name)(chain_id)(return_value_activated)(enabled) )
 
 		};
 
