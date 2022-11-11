@@ -1119,6 +1119,8 @@ ACTION bridge::checkprooff(lightproof blockproof, actionproof actionproof){
 
 ACTION bridge::disable(name chain_name){
 
+  require_auth(_self);
+
   auto chain_itr = _chainstable.find(chain_name.value);
 
   check(chain_itr!=_chainstable.end(), "chain not found");
@@ -1131,6 +1133,8 @@ ACTION bridge::disable(name chain_name){
 
 ACTION bridge::enable(name chain_name){
 
+  require_auth(_self);
+  
   auto chain_itr = _chainstable.find(chain_name.value);
   
   check(chain_itr!=_chainstable.end(), "chain not found");
