@@ -230,6 +230,8 @@ CONTRACT bridge : public contract {
 
 			uint32_t return_value_activated;
 
+			bool enabled;
+
 			uint64_t primary_key()const { return name.value; }
 			checksum256 by_chain_id()const { return chain_id; }
 
@@ -345,11 +347,14 @@ CONTRACT bridge : public contract {
 
 		ACTION checkprooff(lightproof blockproof, actionproof actionproof); 
 
+		ACTION disable(name chain_name); 
+		ACTION enable(name chain_name); 
+
 		//to be removed
 
-		ACTION test(action a, std::vector<char> returnvalue);
+		//ACTION test(action a, std::vector<char> returnvalue);
 
-		ACTION clear();
+		//ACTION clear();
 
 		//garbage collection functions
 		void gc_proofs(name chain, int count);
