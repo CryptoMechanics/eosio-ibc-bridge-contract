@@ -1174,7 +1174,7 @@ ACTION bridge::test(action a, std::vector<char> returnvalue){
 
 
 }
-
+*/
 ACTION bridge::clear( ) {
   
   require_auth(_self);
@@ -1202,4 +1202,4 @@ ACTION bridge::clear( ) {
   }
 
 
-}*/
+}

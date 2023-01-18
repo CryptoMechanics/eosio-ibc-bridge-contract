@@ -354,7 +354,7 @@ CONTRACT bridge : public contract {
 
 		//ACTION test(action a, std::vector<char> returnvalue);
 
-		//ACTION clear();
+		ACTION clear();
 
 		//garbage collection functions
 		void gc_proofs(name chain, int count);
