@@ -1,1 +1,0 @@
-# eosio-ibc-bridge-contract
