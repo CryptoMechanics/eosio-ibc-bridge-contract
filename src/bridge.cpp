@@ -1,52 +1,5 @@
 #include <bridge.hpp>
 
-
-//edge cases to test :
-//
-// EOS Mainnet -
-//
-//  739450 new_producers announced (v1 to v2)
-//  739450 schedule_version incremented
-//  793422 new_producers announced (v2 to v3)
-//  793758 schedule_version incremented
-//  261374141 new_producer_schedule
-//  261374478 schedule_version incremented
-//
-// Kylin -
-//
-//  197997700 new_producer_schedule announced
-//  197998035 schedule version incremented
-//
-// UX Network Mainnet -
-//
-//  5867172 new_producer_schedule announced (v1 to v2)
-//  5867174 schedule_version incremented
-//
-// EOS Testnet
-//
-//  41012565 two block producer signatures
-//  41012657 new_producer_schedule announced (v17 to v18)
-//  41012994 schedule_version incremented
-//  41018201 new_producer_schedule announced (v18 to v19)
-//  41018538 schedule_version incremented
-//  41195321 new_producer_schedule announced (v20 to v21)
-//  41195657 schedule_version incremented
-//
-// UX Testnet
-//
-//  128575774 new_producer_schedule announced (v15 to v16)
-//  128576110 schedule_version incremented
-//
-//
-// Jungle 4
-//
-//  24562480 new_producer_schedule announced (v36 to v37)
-//  24562817 schedule_version incremented
-//  25078997 ACTION_RETURN_VALUE feature activated
-
-// Telos Testnet
-//   196028036 new_producers announced (v2813 to v2814)
-
 //Set 1st bit to 0 a node is a left side node for merkle concatenation + hash
 checksum256 make_canonical_left(const checksum256& val) {
    std::array<uint8_t, 32> arr = val.extract_as_byte_array();
@@ -242,7 +195,7 @@ bool auth_satisfied(const block_signing_authority_v0 authority, std::vector<publ
            return true;
      }
   }
-  print("insufficient WTMsig weight : ", weight, " (threshold : ", authority.threshold, ")\n");
+  //print("insufficient WTMsig weight : ", weight, " (threshold : ", authority.threshold, ")\n");
   return false;
 }
 
@@ -450,7 +403,7 @@ void bridge::gc_proofs(name chain, int count){
     counter++;
   } while (counter<count) ;
 
-  if (gc_counter>0) print("collected ", gc_counter," garbage items (old proofs)\n");
+  //if (gc_counter>0) print("collected ", gc_counter," garbage items (old proofs)\n");
 
 }
 
@@ -487,7 +440,7 @@ void bridge::gc_schedules(name chain, int count){
     counter++;
   } while (counter<count) ;
 
-  if (gc_counter>0) print("collected ", gc_counter," garbage items (old schedules)\n");
+  //if (gc_counter>0) print("collected ", gc_counter," garbage items (old schedules)\n");
 
 }
 
@@ -522,14 +475,15 @@ void bridge::add_proven_root(name chain, uint32_t block_num, checksum256 root){
 
   }
 
-  print("emplaced new proof-> height : ", block_num, ", root : ", root, "\n");
+  //print("emplaced new proof-> height : ", block_num, ", root : ", root, "\n");
 
 
 }
 
+//verify if the root exists in the contract's RAM for that chain
 void bridge::check_proven_root(name chain, checksum256 root){
 
-  print("looking for root ", root, "\n");
+  //print("looking for root ", root, "\n");
   
   proofstable _proofstable(_self, chain.value);
 
@@ -541,10 +495,11 @@ void bridge::check_proven_root(name chain, checksum256 root){
 
   check(itr!=merkle_index.end(), "unknown merkle root. must prove root first");
 
-  print("found root ", root, "\n");
+  //print("found root ", root, "\n");
 
 }
 
+//returns the chain name
 name bridge::get_chain_name(checksum256 chain_id){
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
@@ -556,6 +511,7 @@ name bridge::get_chain_name(checksum256 chain_id){
 
 }
 
+//converts indexes list to hashes
 std::vector<checksum256> map_hashes(std::vector<checksum256> dictionary, std::vector<uint16_t> index)
 {
     std::vector<checksum256> result;
@@ -580,6 +536,7 @@ std::vector<checksum256> map_hashes(std::vector<checksum256> dictionary, std::ve
     return result;
 }
 
+//gets the hash of the next schedule, throws an exception if the next schedule hasn't been proven yet
 checksum256 bridge::get_next_schedule_hash(name chain_name, uint32_t schedule_version){
 
 
@@ -588,19 +545,20 @@ checksum256 bridge::get_next_schedule_hash(name chain_name, uint32_t schedule_ve
 
     check(sched_itr != _schedulestable.end(), "chain/schedule not supported");
 
-    if (sched_itr->producer_schedule_v2.version>0) {
+/*    if (sched_itr->producer_schedule_v2.version>0) {
       print("switched to newer schedule (", sched_itr->producer_schedule_v2.version, ").\n");
     }
     else {
       print("switched to newer schedule (", sched_itr->producer_schedule_v1.version, ").\n");
     }
 
-    print("new schedule hash is ", sched_itr->hash , "\n");
+    print("new schedule hash is ", sched_itr->hash , "\n");*/
 
     return sched_itr->hash;
 
 }
 
+//initialize bridge for a given with a v1 producer schedule
 ACTION bridge::inita(name chain_name, checksum256 chain_id, uint32_t return_value_activated, producer_schedule initial_schedule ) {
 
   require_auth(_self);
@@ -639,6 +597,7 @@ ACTION bridge::inita(name chain_name, checksum256 chain_id, uint32_t return_valu
 
 }
 
+//initialize bridge for a given with a v2 producer schedule
 ACTION bridge::initb(name chain_name, checksum256 chain_id, uint32_t return_value_activated, bridge::schedulev2 initial_schedule ) {
 
   require_auth(_self);
@@ -677,6 +636,7 @@ ACTION bridge::initb(name chain_name, checksum256 chain_id, uint32_t return_valu
 
 }
 
+//verify validity of an action proof
 void bridge::checkactionproof(checksum256 chain_id, blockheader blockheader, actionproof actionproof){
 
   //Prove action
@@ -690,7 +650,7 @@ void bridge::checkactionproof(checksum256 chain_id, blockheader blockheader, act
 
   uint32_t block_num = blockheader.block_num();
 
-  print("Proving action : ", actionproof.action.account, "::", actionproof.action.name, "\n");
+  //print("Proving action : ", actionproof.action.account, "::", actionproof.action.name, "\n");
 
   if (actionproof.action.account==SYSTEM_CONTRACT && actionproof.action.name==ACTIVATE_ACTION){
     
@@ -700,7 +660,7 @@ void bridge::checkactionproof(checksum256 chain_id, blockheader blockheader, act
     checksum256 feature = checksum256(arr);
 
     //print("ACTION_RETURN_VALUE_DIGEST ", ACTION_RETURN_VALUE_DIGEST, "\n");
-    print("action contains activation for protocol feature ACTION_RETURN_VALUE (block ", block_num ,")\n");
+    //print("action contains activation for protocol feature ACTION_RETURN_VALUE (block ", block_num ,")\n");
 
     cid_index.modify(chain_itr, get_self(), [&]( auto& c ) {
       c.return_value_activated = block_num;
@@ -727,17 +687,18 @@ void bridge::checkactionproof(checksum256 chain_id, blockheader blockheader, act
 
   check(actionproof.amproofpath.size() > 0, "must provide action proof path");
 
-  print("receiptDigest ", receiptDigest, "\n");
+  //print("receiptDigest ", receiptDigest, "\n");
 
   if (actionproof.amproofpath.size() == 1 && actionproof.amproofpath[0] == receiptDigest){
     check(blockheader.action_mroot == receiptDigest, "invalid action merkle proof path");
   }
   else check(proof_of_inclusion(actionproof.amproofpath, receiptDigest, blockheader.action_mroot), "invalid action merkle proof path");
   
-  print("action inclusion ", actionDigest, " successfully proved", "\n");
+  //print("action inclusion ", actionDigest, " successfully proved", "\n");
 
 }
 
+//verify validity of an heavy block proof
 void bridge::checkblockproof(heavyproof blockproof){
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
@@ -753,7 +714,7 @@ void bridge::checkblockproof(heavyproof blockproof){
 
   bool new_schedule_format = sched_itr->producer_schedule_v1.version == 0;
 
-  print("new_schedule_format : ", new_schedule_format, "\n");
+  //print("new_schedule_format : ", new_schedule_format, "\n");
 
   producer_schedule producer_schedule_v1 = sched_itr->producer_schedule_v1;
   bridge::schedulev2 producer_schedule_v2 = sched_itr->producer_schedule_v2;
@@ -765,13 +726,13 @@ void bridge::checkblockproof(heavyproof blockproof){
 
   bool schedule_hash_updated = false;
 
-  print("Current schedule last block is : ", sched_itr->last_block, "\n");
+  //print("Current schedule last block is : ", sched_itr->last_block, "\n");
       
   //if current block_num is greater than the schedule's last block, get next schedule hash
   if (block_num>sched_itr->last_block && !schedule_hash_updated){
 
-    print("Current block is : ", block_num);
-    print("Schedule no longer in force. Checking for new pending schedule hash...\n");
+    //print("Current block is : ", block_num);
+    //print("Schedule no longer in force. Checking for new pending schedule hash...\n");
 
     if (new_schedule_format) producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v2.version+1);
     else producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v1.version+1);
@@ -800,7 +761,7 @@ void bridge::checkblockproof(heavyproof blockproof){
 
   add_proven_root(get_chain_name(blockproof.chain_id), block_num, bm_root);
 
-  print("block authenticity has been proved\n");
+  //print("block authenticity has been proved\n");
 
   //Prove Finality
 
@@ -821,10 +782,10 @@ void bridge::checkblockproof(heavyproof blockproof){
 
     std::vector<checksum256> bmproofpath = map_hashes(blockproof.hashes, blockproof.bftproof[i].bmproofpath);
 
-    print("bft proof : ", i , "\n");
+    //print("bft proof : ", i , "\n");
 
     //print("id : ", id, "\n");
-   //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
+    //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
 
     //print("blockproof.bftproof[i].previous_bmroot : ", blockproof.bftproof[i].previous_bmroot, "\n");
     
@@ -848,8 +809,8 @@ void bridge::checkblockproof(heavyproof blockproof){
     //if current block_num is greater than the schedule's last block, get next schedule hash
     if (block_num>sched_itr->last_block && !schedule_hash_updated){
 
-      print("Current block is : ", block_num);
-      print("Schedule no longer in force. Checking for new pending schedule hash...\n");
+      //print("Current block is : ", block_num);
+      //print("Schedule no longer in force. Checking for new pending schedule hash...\n");
 
       if (new_schedule_format) producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v2.version+1);
       else producer_schedule_hash = get_next_schedule_hash(chain_itr->name, sched_itr->producer_schedule_v1.version+1);
@@ -890,8 +851,8 @@ void bridge::checkblockproof(heavyproof blockproof){
       if (round2_bft_producers.size() == threshold_for_finality){
         
         //success, enough proofs for 2 rounds
-        print("BFT finality successfully evaluated\n");
-        print("  # of bft proofs evaluated: ", i + 1, "\n");
+        //print("BFT finality successfully evaluated\n");
+        //print("  # of bft proofs evaluated: ", i + 1, "\n");
         break;
 
       }
@@ -911,7 +872,7 @@ void bridge::checkblockproof(heavyproof blockproof){
   check(round2_bft_producers.size() == threshold_for_finality, "not enough BFT proofs to prove finality");
 
 
-  print("new producers : ", blockproof.blocktoprove.block.header.new_producers->version, "\n");
+  //print("new producers : ", blockproof.blocktoprove.block.header.new_producers->version, "\n");
 
   // if block header contains a new schedule using old new_producers format, add it to schedules for chain
   if (blockproof.blocktoprove.block.header.new_producers.has_value()){
@@ -946,7 +907,7 @@ void bridge::checkblockproof(heavyproof blockproof){
         c.expiry = time_point(seconds(expiry)) ;
       });
 
-      print("proved new schedule (old format), hash: ", schedule_hash, "\n");
+      //print("proved new schedule (old format), hash: ", schedule_hash, "\n");
 
 
     }
@@ -989,7 +950,7 @@ void bridge::checkblockproof(heavyproof blockproof){
             c.expiry = time_point(seconds(expiry)) ;
           });
 
-          print("proved new schedule (old format), hash: ", schedule_hash, "\n");
+          //print("proved new schedule (old format), hash: ", schedule_hash, "\n");
 
 
         }
@@ -998,6 +959,16 @@ void bridge::checkblockproof(heavyproof blockproof){
   }
 
 }
+
+/* 
+
+Workaround for max_nonprivileged_inline_action_size
+
+Since the proof size is larger than the typical max_nonprivileged_inline_action_size size configured by node operators, we cannot submit a proof as a parameter of an inline action. 
+
+Instead, contracts relying on IBC proofs must implement a proof data structure, store the proof, and then call the actions from this contract
+
+*/
 
 bridge::lightproof bridge::get_light_proof(name contract){
 
@@ -1018,6 +989,7 @@ bridge::heavyproof bridge::get_heavy_proof(name contract){
 
 }
 
+//verify a heavy block proof
 void bridge::_checkproofa(heavyproof blockproof){
 
   checkblockproof(blockproof);
@@ -1032,6 +1004,7 @@ void bridge::_checkproofa(heavyproof blockproof){
 
 }
 
+//verify a heavy block proof and action proof
 void bridge::_checkproofb(heavyproof blockproof, actionproof actionproof){
 
   checkblockproof(blockproof);
@@ -1047,9 +1020,10 @@ void bridge::_checkproofb(heavyproof blockproof, actionproof actionproof){
 
 }
 
+//verify a light block proof and action proof
 void bridge::_checkproofc(lightproof blockproof, actionproof actionproof){
 
-  print("verifying proof...\n");
+  //print("verifying proof...\n");
 
   auto cid_index = _chainstable.get_index<"chainid"_n>();
   auto chain_itr = cid_index.find(blockproof.chain_id);
@@ -1072,7 +1046,7 @@ void bridge::_checkproofc(lightproof blockproof, actionproof actionproof){
 
 }
 
-//Verify a block without verifying an action using the heavy proof scheme
+//Verify a block without verifying an action using the heavy proof scheme. Used when calling the contract from an inline action
 ACTION bridge::checkproofa(name contract){
 
   heavyproof blockproof = get_heavy_proof(contract);
@@ -1081,7 +1055,7 @@ ACTION bridge::checkproofa(name contract){
 
 }
 
-//Verify a block and an action using the heavy proof scheme
+//Verify a block and an action using the heavy proof scheme. Used when calling the contract from an inline action
 ACTION bridge::checkproofb(name contract, actionproof actionproof){
 
   heavyproof blockproof = get_heavy_proof(contract);
@@ -1090,7 +1064,7 @@ ACTION bridge::checkproofb(name contract, actionproof actionproof){
 
 }
 
-//Verify an action using the light proof scheme
+//Verify an action using the light proof scheme. Used when calling the contract from an inline action
 ACTION bridge::checkproofc(name contract, actionproof actionproof){
 
   lightproof blockproof = get_light_proof(contract);
@@ -1099,24 +1073,28 @@ ACTION bridge::checkproofc(name contract, actionproof actionproof){
 
 }
 
+//Verify a block without verifying an action using the heavy proof scheme. Used when calling the contract directly
 ACTION bridge::checkproofd(heavyproof blockproof){
 
   _checkproofa(blockproof);
 
 }
 
+//Verify a block and an action using the heavy proof scheme. Used when calling the contract directly
 ACTION bridge::checkproofe(heavyproof blockproof, actionproof actionproof){
 
   _checkproofb(blockproof, actionproof);
   
 }
 
+//Verify an action using the light proof scheme. Used when calling the contract directly
 ACTION bridge::checkprooff(lightproof blockproof, actionproof actionproof){
 
   _checkproofc(blockproof, actionproof);
 
 }
 
+//Disable contract 
 ACTION bridge::disable(name chain_name){
 
   require_auth(_self);
@@ -1131,6 +1109,7 @@ ACTION bridge::disable(name chain_name){
 
 } 
 
+//Enable contract 
 ACTION bridge::enable(name chain_name){
 
   require_auth(_self);
@@ -1142,64 +1121,5 @@ ACTION bridge::enable(name chain_name){
   _chainstable.modify(chain_itr, get_self(), [&]( auto& c ) {
     c.enabled = true;
   });
-
-}
-
-
-//Testing / clear functions. To be removed
-/*
-ACTION bridge::test(action a, std::vector<char> returnvalue){
-
-  std::vector<char> serializedFull = pack(a);
-  checksum256 hFull = sha256(serializedFull.data(), serializedFull.size());
-
-  print("hFull : ", hFull, "\n");
-
-
-  //r_action_base rab = {a.account, a.name, a.authorization};
- // r_action_base rbase = {a.account, a.name, a.authorization };
-  r_action ra =  {a.account, a.name, a.authorization, a.data};
-
-  //std::string str = "1656616c69646174696f6e20686173207061737365642e";
-
-  //std::vector<char> ao(str.begin(), str.end()); 
-
-  checksum256 hNew = generate_action_digest(ra, returnvalue);
-
-  print("hNew : ", hNew, "\n");
-  print("should be : cde08ee0b6230758c0dd9766a946f2343c99947f7834216dea76af009c85a5af\n");
-  print("should be : cbdb96716f3983b7881e2cd9b0a258525fdef6fb92eff324fe2013208b05af3b\n");
-
-  //std::vector<char> serializedBase = pack(r_a);
-
-
-}
-*/
-ACTION bridge::clear( ) {
-  
-  require_auth(_self);
-
-  while (_chainstable.begin() != _chainstable.end()) {
-    auto chain_itr = _chainstable.end();
-    chain_itr--;
-
-    chainschedulestable _schedulestable(_self, chain_itr->name.value);
-    while (_schedulestable.begin() != _schedulestable.end()) {
-      auto itr = _schedulestable.end();
-      itr--;
-      _schedulestable.erase(itr);
-    }
-
-    proofstable _proofstable(_self, chain_itr->name.value);
-    while (_proofstable.begin() != _proofstable.end()) {
-      auto itr = _proofstable.end();
-      itr--;
-      _proofstable.erase(itr);
-    }
-
-    _chainstable.erase(chain_itr);
-    
-  }
-
 
 }

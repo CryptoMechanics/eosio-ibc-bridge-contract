@@ -12,9 +12,6 @@ CONTRACT bridge : public contract {
    public:
       using contract::contract;
 
-		//const int SCHEDULE_CACHING_DURATION = 60;
-		//const int PROOF_CACHING_DURATION = 60;
-
 		const name SYSTEM_CONTRACT = "eosio"_n;
 		const name ACTIVATE_ACTION = "activate"_n;
 
@@ -349,12 +346,6 @@ CONTRACT bridge : public contract {
 
 		ACTION disable(name chain_name); 
 		ACTION enable(name chain_name); 
-
-		//to be removed
-
-		//ACTION test(action a, std::vector<char> returnvalue);
-
-		ACTION clear();
 
 		//garbage collection functions
 		void gc_proofs(name chain, int count);
